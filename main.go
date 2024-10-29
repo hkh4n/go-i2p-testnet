@@ -14,6 +14,10 @@ import (
 	"github.com/docker/docker/pkg/archive"
 	"io"
 	"log"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 )
 
 func generateRouterConfig(routerID int, ip string, peers []string) string {
@@ -62,6 +66,8 @@ func createDockerNetwork(cli *client.Client, ctx context.Context, networkName st
 	fmt.Printf("Created network %s with ID %s\n", networkName, resp.ID)
 	return resp.ID, nil
 }
+
+/*
 func createRouterContainer(cli *client.Client, ctx context.Context, routerID int, ip string, networkName string, configData string) error {
 	containerName := fmt.Sprintf("router%d", routerID)
 
@@ -118,6 +124,68 @@ func createRouterContainer(cli *client.Client, ctx context.Context, routerID int
 	}
 
 	return nil
+}
+
+*/
+// createRouterContainer sets up a router container with its configuration.
+func createRouterContainer(cli *client.Client, ctx context.Context, routerID int, ip string, networkName string, configData string) (string, string, error) {
+	containerName := fmt.Sprintf("router%d", routerID)
+
+	// Create a temporary volume for the configuration
+	volumeName := fmt.Sprintf("router%d_config", routerID)
+	createOptions := volume.CreateOptions{
+		Name: volumeName,
+	}
+	_, err := cli.VolumeCreate(ctx, createOptions)
+	if err != nil {
+		return "", "", fmt.Errorf("Error creating volume: %v", err)
+	}
+
+	// Copy the configuration data into the volume
+	err = copyConfigToVolume(cli, ctx, volumeName, configData)
+	if err != nil {
+		return "", "", fmt.Errorf("Error copying config to volume: %v", err)
+	}
+
+	// Prepare container configuration
+	containerConfig := &container.Config{
+		Image: "go-i2p-testnet",
+		Cmd:   []string{"go-i2p"},
+	}
+
+	// Host configuration
+	hostConfig := &container.HostConfig{
+		Binds: []string{
+			fmt.Sprintf("%s:/config", volumeName),
+		},
+	}
+
+	// Network settings
+	endpointSettings := &network.EndpointSettings{
+		IPAMConfig: &network.EndpointIPAMConfig{
+			IPv4Address: ip,
+		},
+	}
+
+	networkingConfig := &network.NetworkingConfig{
+		EndpointsConfig: map[string]*network.EndpointSettings{
+			networkName: endpointSettings,
+		},
+	}
+
+	// Create the container
+	resp, err := cli.ContainerCreate(ctx, containerConfig, hostConfig, networkingConfig, nil, containerName)
+	if err != nil {
+		return volumeName, "", fmt.Errorf("Error creating container: %v", err)
+	}
+
+	// Start the container
+	startOptions := container.StartOptions{}
+	if err := cli.ContainerStart(ctx, resp.ID, startOptions); err != nil {
+		return volumeName, "", fmt.Errorf("Error starting container: %v", err)
+	}
+
+	return resp.ID, volumeName, nil
 }
 func copyConfigToVolume(cli *client.Client, ctx context.Context, volumeName string, configData string) error {
 	// Create a temporary container to copy data into the volume
@@ -235,6 +303,49 @@ func imageExists(cli *client.Client, ctx context.Context, imageName string) (boo
 	}
 	return false, nil
 }
+
+// cleanup removes all created Docker resources: containers, volumes, and network.
+func cleanup(cli *client.Client, ctx context.Context, createdContainers []string, createdVolumes []string, networkName string) {
+	fmt.Println("\nCleaning up Docker resources...")
+
+	// Remove containers
+	for _, containerID := range createdContainers {
+		// Attempt to stop the container
+		timeout := 10 // seconds
+		err := cli.ContainerStop(ctx, containerID, container.StopOptions{Timeout: &timeout})
+		if err != nil {
+			log.Printf("Warning: Failed to stop container %s: %v", containerID, err)
+		}
+
+		// Attempt to remove the container
+		removeOptions := container.RemoveOptions{Force: true}
+		err = cli.ContainerRemove(ctx, containerID, removeOptions)
+		if err != nil {
+			log.Printf("Warning: Failed to remove container %s: %v", containerID, err)
+		} else {
+			fmt.Printf("Removed container %s\n", containerID)
+		}
+	}
+
+	// Remove volumes
+	for _, volumeName := range createdVolumes {
+		err := cli.VolumeRemove(ctx, volumeName, true)
+		if err != nil {
+			log.Printf("Warning: Failed to remove volume %s: %v", volumeName, err)
+		} else {
+			fmt.Printf("Removed volume %s\n", volumeName)
+		}
+	}
+
+	// Remove network
+	err := cli.NetworkRemove(ctx, networkName)
+	if err != nil {
+		log.Printf("Warning: Failed to remove network %s: %v", networkName, err)
+	} else {
+		fmt.Printf("Removed network %s\n", networkName)
+	}
+}
+
 func main() {
 	ctx := context.Background()
 
@@ -243,6 +354,31 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error creating Docker client: %v", err)
 	}
+
+	// Track created containers and volumes for cleanup
+	var createdContainers []string
+	var createdVolumes []string
+	var mu sync.Mutex // To protect access to the slices
+
+	// Function to add container and volume IDs to the tracking slices
+	addCreated := func(containerID, volumeID string) {
+		mu.Lock()
+		defer mu.Unlock()
+		createdContainers = append(createdContainers, containerID)
+		createdVolumes = append(createdVolumes, volumeID)
+	}
+	// Ensure cleanup is performed on exit
+	defer func() {
+		if len(createdContainers) == 0 && len(createdVolumes) == 0 {
+			return
+		}
+		cleanup(cli, ctx, createdContainers, createdVolumes, "go-i2p-testnet")
+	}()
+
+	// Set up signal handling to gracefully handle termination
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
 	// Check if the image exists
 	exists, err := imageExists(cli, ctx, "go-i2p-testnet")
 	if err != nil {
@@ -258,14 +394,6 @@ func main() {
 	} else {
 		fmt.Printf("Docker image go-i2p-testnet already exists. Skipping build.\n")
 	}
-	/*
-		// Build the Docker image
-		err = buildDockerImage(cli, ctx, "go-i2p-testnet", "../docker")
-		if err != nil {
-			log.Fatalf("Error building Docker image: %v", err)
-		}
-
-	*/
 
 	// Create Docker network
 	networkName := "go-i2p-testnet"
@@ -302,10 +430,19 @@ func main() {
 		configData := generateRouterConfig(routerID, ip, peers)
 
 		// Create the container
-		err := createRouterContainer(cli, ctx, routerID, ip, networkName, configData)
+		containerID, volumeName, err := createRouterContainer(cli, ctx, routerID, ip, networkName, configData)
 		if err != nil {
 			log.Fatalf("Error creating router container: %v", err)
 		}
 		fmt.Printf("Started router%d with IP %s\n", routerID, ip)
+
+		// Track the created container and volume for cleanup
+		addCreated(containerID, volumeName)
 	}
+	// Inform the user that routers are running
+	fmt.Println("All routers are up and running. Press Ctrl+C to stop and clean up.")
+
+	// Wait for interrupt signal to gracefully shutdown
+	<-sigs
+	fmt.Println("\nReceived interrupt signal. Initiating cleanup...")
 }
