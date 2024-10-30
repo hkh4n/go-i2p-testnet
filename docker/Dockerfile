@@ -10,7 +10,7 @@ RUN apk update && apk add --no-cache \
     gcc \
     musl-dev
 
-RUN git clone -b noise-experimental https://github.com/go-i2p/go-i2p.git
+RUN git clone -b config https://github.com/hkh4n/go-i2p.git
 
 WORKDIR /go/src/app/go-i2p/
 

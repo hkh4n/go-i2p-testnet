@@ -30,4 +30,4 @@ test:
 	$(GOTEST) -v ./...
 
 run: build
-	./$(BUILD_DIR)/$(BINARY_NAME1)
+	cd $(BUILD_DIR) && ./$(BINARY_NAME1)

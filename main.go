@@ -124,7 +124,7 @@ func createRouterContainer(cli *client.Client, ctx context.Context, routerID int
 
 	// Prepare container configuration
 	containerConfig := &container.Config{
-		Image: "go-i2p-testnet",
+		Image: "go-i2p-node",
 		Cmd:   []string{"go-i2p"},
 	}
 
@@ -238,7 +238,7 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	err = docker_control.BuildDockerImage(cli, ctx, "go-i2p-testnet", "../docker")
+	err = docker_control.BuildDockerImage(cli, ctx, "go-i2p-node", "../docker")
 	if err != nil {
 		log.Fatalf("Error building Docker image: %v", err)
 	}
