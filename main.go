@@ -22,11 +22,11 @@ import (
 
 func generateRouterConfig(routerID int, ip string, peers []string) string {
 	config := fmt.Sprintf(`
-	netID=12345
-	reseed.disable=true
-	router.transport.udp.host=%s
-	router.transport.udp.port=7654
-	`, ip)
+		netID=12345
+		reseed.disable=true
+		router.transport.udp.host=%s
+		router.transport.udp.port=7654
+		`, ip)
 
 	// Add peers to the configuration
 	for i, peer := range peers {
@@ -38,7 +38,7 @@ func generateRouterConfig(routerID int, ip string, peers []string) string {
 
 func createDockerNetwork(cli *client.Client, ctx context.Context, networkName string) (string, error) {
 	// Check if the network already exists
-	networks, err := cli.NetworkList(ctx, types.NetworkListOptions{})
+	networks, err := cli.NetworkList(ctx, network.ListOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -67,66 +67,6 @@ func createDockerNetwork(cli *client.Client, ctx context.Context, networkName st
 	return resp.ID, nil
 }
 
-/*
-func createRouterContainer(cli *client.Client, ctx context.Context, routerID int, ip string, networkName string, configData string) error {
-	containerName := fmt.Sprintf("router%d", routerID)
-
-	// Create a temporary volume for the configuration
-	volumeName := fmt.Sprintf("router%d_config", routerID)
-	CreateOptions := volume.CreateOptions{Name: volumeName}
-	_, err := cli.VolumeCreate(ctx, CreateOptions)
-	if err != nil {
-		return fmt.Errorf("Error creating volume: %v", err)
-	}
-
-	// Copy the configuration data into the volume
-	err = copyConfigToVolume(cli, ctx, volumeName, configData)
-	if err != nil {
-		return fmt.Errorf("Error copying config to volume: %v", err)
-	}
-
-	// Prepare container configuration
-	containerConfig := &container.Config{
-		Image: "go-i2p-testnet",
-		Cmd:   []string{"go-i2p"},
-	}
-
-	// Host configuration
-	hostConfig := &container.HostConfig{
-		Binds: []string{
-			fmt.Sprintf("%s:/config", volumeName),
-		},
-	}
-
-	// Network settings
-	endpointSettings := &network.EndpointSettings{
-		IPAMConfig: &network.EndpointIPAMConfig{
-			IPv4Address: ip,
-		},
-	}
-
-	networkingConfig := &network.NetworkingConfig{
-		EndpointsConfig: map[string]*network.EndpointSettings{
-			networkName: endpointSettings,
-		},
-	}
-
-	// Create the container
-	resp, err := cli.ContainerCreate(ctx, containerConfig, hostConfig, networkingConfig, nil, containerName)
-	if err != nil {
-		return fmt.Errorf("Error creating container: %v", err)
-	}
-
-	// Start the container
-	StartOptions := container.StartOptions{}
-	if err := cli.ContainerStart(ctx, resp.ID, StartOptions); err != nil {
-		return fmt.Errorf("Error starting container: %v", err)
-	}
-
-	return nil
-}
-
-*/
 // createRouterContainer sets up a router container with its configuration.
 func createRouterContainer(cli *client.Client, ctx context.Context, routerID int, ip string, networkName string, configData string) (string, string, error) {
 	containerName := fmt.Sprintf("router%d", routerID)
@@ -204,35 +144,38 @@ func copyConfigToVolume(cli *client.Client, ctx context.Context, volumeName stri
 
 	resp, err := cli.ContainerCreate(ctx, tempContainerConfig, hostConfig, nil, nil, "")
 	if err != nil {
-		return fmt.Errorf("Error creating temporary container: %v", err)
+		return fmt.Errorf("error creating temporary container: %v", err)
 	}
 	defer func() {
 		RemoveOptions := container.RemoveOptions{Force: true}
-		cli.ContainerRemove(ctx, resp.ID, RemoveOptions)
+		err := cli.ContainerRemove(ctx, resp.ID, RemoveOptions)
+		if err != nil {
+			log.Printf("failed to remove container: %v", err)
+		}
 	}()
 
 	// Start the container
 	StartOptions := container.StartOptions{}
 	if err := cli.ContainerStart(ctx, resp.ID, StartOptions); err != nil {
-		return fmt.Errorf("Error starting temporary container: %v", err)
+		return fmt.Errorf("error starting temporary container: %v", err)
 	}
 
 	// Copy the configuration file into the container
 	tarReader, err := createTarArchive("router.config", configData)
 	if err != nil {
-		return fmt.Errorf("Error creating tar archive: %v", err)
+		return fmt.Errorf("error creating tar archive: %v", err)
 	}
 
 	// Copy to the container's volume-mounted directory
-	err = cli.CopyToContainer(ctx, resp.ID, "/config", tarReader, types.CopyToContainerOptions{})
+	err = cli.CopyToContainer(ctx, resp.ID, "/config", tarReader, container.CopyToContainerOptions{})
 	if err != nil {
-		return fmt.Errorf("Error copying to container: %v", err)
+		return fmt.Errorf("error copying to container: %v", err)
 	}
 
 	// Stop the container
 	StopOptions := container.StopOptions{}
 	if err := cli.ContainerStop(ctx, resp.ID, StopOptions); err != nil {
-		return fmt.Errorf("Error stopping temporary container: %v", err)
+		return fmt.Errorf("error stopping temporary container: %v", err)
 	}
 
 	return nil
@@ -262,7 +205,7 @@ func createTarArchive(filename, content string) (io.Reader, error) {
 func buildDockerImage(cli *client.Client, ctx context.Context, imageName string, dockerfileDir string) error {
 	dockerfileTar, err := archive.TarWithOptions(dockerfileDir, &archive.TarOptions{})
 	if err != nil {
-		return fmt.Errorf("Error creating tar archive of Dockerfile: %v", err)
+		return fmt.Errorf("error creating tar archive of Dockerfile: %v", err)
 	}
 
 	buildOptions := types.ImageBuildOptions{
@@ -273,7 +216,7 @@ func buildDockerImage(cli *client.Client, ctx context.Context, imageName string,
 
 	resp, err := cli.ImageBuild(ctx, dockerfileTar, buildOptions)
 	if err != nil {
-		return fmt.Errorf("Error building Docker image: %v", err)
+		return fmt.Errorf("error building Docker image: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -281,7 +224,7 @@ func buildDockerImage(cli *client.Client, ctx context.Context, imageName string,
 	buf := new(bytes.Buffer)
 	_, err = io.Copy(buf, resp.Body)
 	if err != nil {
-		return fmt.Errorf("Error reading build output: %v", err)
+		return fmt.Errorf("error reading build output: %v", err)
 	}
 	fmt.Println("Docker build output:", buf.String())
 
