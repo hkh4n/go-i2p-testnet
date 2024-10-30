@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
@@ -85,7 +84,7 @@ func createDockerNetwork(cli *client.Client, ctx context.Context, networkName st
 	}
 
 	// Create the network
-	resp, err := cli.NetworkCreate(ctx, networkName, types.NetworkCreate{
+	createOptions := network.CreateOptions{
 		Driver: "bridge",
 		IPAM: &network.IPAM{
 			Config: []network.IPAMConfig{
@@ -94,7 +93,8 @@ func createDockerNetwork(cli *client.Client, ctx context.Context, networkName st
 				},
 			},
 		},
-	})
+	}
+	resp, err := cli.NetworkCreate(ctx, networkName, createOptions)
 	if err != nil {
 		return "", err
 	}
