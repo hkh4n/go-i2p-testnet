@@ -1,41 +1,76 @@
 package main
 
 import (
-	"archive/tar"
-	"bytes"
 	"context"
 	"fmt"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/archive"
-	"io"
+	"github.com/go-i2p/go-i2p/lib/config"
+	"go-i2p-testnet/lib/docker_control"
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 )
 
+// "go-i2p-testnet/lib/docker_control"
+// initializeRouterConfig sets up a router-specific configuration for each instance
+func initializeRouterConfig(routerID int) *config.RouterConfig {
+	// Define base directory for this router's configuration
+	baseDir := filepath.Join("testnet", fmt.Sprintf("router%d", routerID))
+	err := os.MkdirAll(baseDir, os.ModePerm)
+	if err != nil {
+		log.Printf("failed to create baseDir: %v", err)
+		return nil
+	}
+
+	// Assign each router its own netDb and working directory
+	netDbPath := filepath.Join(baseDir, "netDb")
+	workingDir := filepath.Join(baseDir, "config")
+	err = os.MkdirAll(netDbPath, os.ModePerm)
+	if err != nil {
+		log.Printf("failed to create netDbPath: %v", err)
+		return nil
+	}
+	err = os.MkdirAll(workingDir, os.ModePerm)
+	if err != nil {
+		log.Printf("failed to create workingDir: %v", err)
+		return nil
+	}
+
+	// Create and return a RouterConfig instance
+	return &config.RouterConfig{
+		BaseDir:    baseDir,
+		WorkingDir: workingDir,
+		NetDb:      &config.NetDbConfig{Path: netDbPath},
+		Bootstrap:  &config.DefaultBootstrapConfig, // Modify as needed for custom bootstrap setup
+	}
+}
 func generateRouterConfig(routerID int, ip string, peers []string) string {
-	config := fmt.Sprintf(`
+	// Initialize router-specific configuration
+	routerConfig := initializeRouterConfig(routerID)
+
+	// Define common settings for each router instance
+	configData := fmt.Sprintf(`
 		netID=12345
 		reseed.disable=true
 		router.transport.udp.host=%s
 		router.transport.udp.port=7654
-		`, ip)
+		netDb.path=%s
+	`, ip, routerConfig.NetDb.Path)
 
 	// Add peers to the configuration
 	for i, peer := range peers {
-		config += fmt.Sprintf("peer.%d=%s\n", i+1, peer)
+		configData += fmt.Sprintf("peer.%d=%s\n", i+1, peer)
 	}
 
-	return config
+	return configData
 }
-
 func createDockerNetwork(cli *client.Client, ctx context.Context, networkName string) (string, error) {
 	// Check if the network already exists
 	networks, err := cli.NetworkList(ctx, network.ListOptions{})
@@ -78,13 +113,13 @@ func createRouterContainer(cli *client.Client, ctx context.Context, routerID int
 	}
 	_, err := cli.VolumeCreate(ctx, createOptions)
 	if err != nil {
-		return "", "", fmt.Errorf("Error creating volume: %v", err)
+		return "", "", fmt.Errorf("error creating volume: %v", err)
 	}
 
 	// Copy the configuration data into the volume
-	err = copyConfigToVolume(cli, ctx, volumeName, configData)
+	err = docker_control.CopyConfigToVolume(cli, ctx, volumeName, configData)
 	if err != nil {
-		return "", "", fmt.Errorf("Error copying config to volume: %v", err)
+		return "", "", fmt.Errorf("error copying config to volume: %v", err)
 	}
 
 	// Prepare container configuration
@@ -126,125 +161,6 @@ func createRouterContainer(cli *client.Client, ctx context.Context, routerID int
 	}
 
 	return resp.ID, volumeName, nil
-}
-func copyConfigToVolume(cli *client.Client, ctx context.Context, volumeName string, configData string) error {
-	// Create a temporary container to copy data into the volume
-	tempContainerConfig := &container.Config{
-		Image:      "alpine",
-		Tty:        false,
-		WorkingDir: "/config",
-		Cmd:        []string{"sh", "-c", "sleep 1d"},
-	}
-
-	hostConfig := &container.HostConfig{
-		Binds: []string{
-			fmt.Sprintf("%s:/config", volumeName),
-		},
-	}
-
-	resp, err := cli.ContainerCreate(ctx, tempContainerConfig, hostConfig, nil, nil, "")
-	if err != nil {
-		return fmt.Errorf("error creating temporary container: %v", err)
-	}
-	defer func() {
-		RemoveOptions := container.RemoveOptions{Force: true}
-		err := cli.ContainerRemove(ctx, resp.ID, RemoveOptions)
-		if err != nil {
-			log.Printf("failed to remove container: %v", err)
-		}
-	}()
-
-	// Start the container
-	StartOptions := container.StartOptions{}
-	if err := cli.ContainerStart(ctx, resp.ID, StartOptions); err != nil {
-		return fmt.Errorf("error starting temporary container: %v", err)
-	}
-
-	// Copy the configuration file into the container
-	tarReader, err := createTarArchive("router.config", configData)
-	if err != nil {
-		return fmt.Errorf("error creating tar archive: %v", err)
-	}
-
-	// Copy to the container's volume-mounted directory
-	err = cli.CopyToContainer(ctx, resp.ID, "/config", tarReader, container.CopyToContainerOptions{})
-	if err != nil {
-		return fmt.Errorf("error copying to container: %v", err)
-	}
-
-	// Stop the container
-	StopOptions := container.StopOptions{}
-	if err := cli.ContainerStop(ctx, resp.ID, StopOptions); err != nil {
-		return fmt.Errorf("error stopping temporary container: %v", err)
-	}
-
-	return nil
-}
-
-func createTarArchive(filename, content string) (io.Reader, error) {
-	buf := new(bytes.Buffer)
-	tw := tar.NewWriter(buf)
-
-	hdr := &tar.Header{
-		Name: filename,
-		Mode: 0600,
-		Size: int64(len(content)),
-	}
-	if err := tw.WriteHeader(hdr); err != nil {
-		return nil, err
-	}
-	if _, err := tw.Write([]byte(content)); err != nil {
-		return nil, err
-	}
-	if err := tw.Close(); err != nil {
-		return nil, err
-	}
-	return buf, nil
-}
-
-func buildDockerImage(cli *client.Client, ctx context.Context, imageName string, dockerfileDir string) error {
-	dockerfileTar, err := archive.TarWithOptions(dockerfileDir, &archive.TarOptions{})
-	if err != nil {
-		return fmt.Errorf("error creating tar archive of Dockerfile: %v", err)
-	}
-
-	buildOptions := types.ImageBuildOptions{
-		Tags:       []string{imageName},
-		Dockerfile: "Dockerfile",
-		Remove:     true,
-	}
-
-	resp, err := cli.ImageBuild(ctx, dockerfileTar, buildOptions)
-	if err != nil {
-		return fmt.Errorf("error building Docker image: %v", err)
-	}
-	defer resp.Body.Close()
-
-	// Read the output
-	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, resp.Body)
-	if err != nil {
-		return fmt.Errorf("error reading build output: %v", err)
-	}
-	fmt.Println("Docker build output:", buf.String())
-
-	return nil
-}
-func imageExists(cli *client.Client, ctx context.Context, imageName string) (bool, error) {
-	ListOptions := image.ListOptions{}
-	images, err := cli.ImageList(ctx, ListOptions)
-	if err != nil {
-		return false, err
-	}
-
-	for _, image := range images {
-		for _, tag := range image.RepoTags {
-			if tag == imageName || tag == imageName+":latest" {
-				return true, nil
-			}
-		}
-	}
-	return false, nil
 }
 
 // cleanup removes all created Docker resources: containers, volumes, and network.
@@ -322,20 +238,9 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	// Check if the image exists
-	exists, err := imageExists(cli, ctx, "go-i2p-testnet")
+	err = docker_control.BuildDockerImage(cli, ctx, "go-i2p-testnet", "../docker")
 	if err != nil {
-		log.Fatalf("Error checking for Docker image: %v", err)
-	}
-
-	if !exists {
-		// Build the Docker image if it doesn't exist
-		err = buildDockerImage(cli, ctx, "go-i2p-testnet", "../docker")
-		if err != nil {
-			log.Fatalf("Error building Docker image: %v", err)
-		}
-	} else {
-		fmt.Printf("Docker image go-i2p-testnet already exists. Skipping build.\n")
+		log.Fatalf("Error building Docker image: %v", err)
 	}
 
 	// Create Docker network

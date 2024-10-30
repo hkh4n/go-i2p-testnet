@@ -2,7 +2,10 @@ module go-i2p-testnet
 
 go 1.23.2
 
-require github.com/docker/docker v27.3.1+incompatible
+require (
+	github.com/docker/docker v27.3.1+incompatible
+	github.com/go-i2p/go-i2p v0.0.0-20241004032601-8173ae49e6ba
+)
 
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect

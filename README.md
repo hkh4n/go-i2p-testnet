@@ -5,3 +5,4 @@
  - [ ] Readline interface
  - [ ] Reseed via file
  - [ ] Reseed via node
+ - [ ] Setup config
