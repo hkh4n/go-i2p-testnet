@@ -238,7 +238,7 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	err = docker_control.BuildDockerImage(cli, ctx, "go-i2p-node", "../docker")
+	err = docker_control.BuildDockerImage(cli, ctx, "go-i2p-node", "../docker/go-i2p-node.dockerfile")
 	if err != nil {
 		log.Fatalf("Error building Docker image: %v", err)
 	}

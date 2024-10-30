@@ -12,6 +12,7 @@ import (
 	"github.com/docker/docker/pkg/archive"
 	"io"
 	"log"
+	"path/filepath"
 )
 
 func CopyConfigToVolume(cli *client.Client, ctx context.Context, volumeName string, configData string) error {
@@ -67,7 +68,7 @@ func CopyConfigToVolume(cli *client.Client, ctx context.Context, volumeName stri
 
 	return nil
 }
-func BuildDockerImage(cli *client.Client, ctx context.Context, imageName string, dockerfileDir string) error {
+func BuildDockerImage(cli *client.Client, ctx context.Context, imageName string, dockerfilePath string) error {
 	// Check if the image already exists
 	exists, err := imageExists(cli, ctx, imageName)
 	if err != nil {
@@ -80,6 +81,10 @@ func BuildDockerImage(cli *client.Client, ctx context.Context, imageName string,
 		return nil
 	}
 
+	// Use the directory of the Dockerfile for creating the tar archive
+	dockerfileDir := filepath.Dir(dockerfilePath)
+	dockerfileName := filepath.Base(dockerfilePath)
+
 	dockerfileTar, err := archive.TarWithOptions(dockerfileDir, &archive.TarOptions{})
 	if err != nil {
 		return fmt.Errorf("error creating tar archive of Dockerfile: %v", err)
@@ -87,7 +92,7 @@ func BuildDockerImage(cli *client.Client, ctx context.Context, imageName string,
 
 	buildOptions := types.ImageBuildOptions{
 		Tags:       []string{imageName},
-		Dockerfile: "Dockerfile",
+		Dockerfile: dockerfileName, // Set custom Dockerfile name here
 		Remove:     true,
 	}
 
@@ -97,7 +102,7 @@ func BuildDockerImage(cli *client.Client, ctx context.Context, imageName string,
 	}
 	defer resp.Body.Close()
 
-	// Read the output
+	// Read and print the build output
 	buf := new(bytes.Buffer)
 	_, err = io.Copy(buf, resp.Body)
 	if err != nil {
