@@ -28,3 +28,6 @@ clean:
 
 test:
 	$(GOTEST) -v ./...
+
+run: build
+	./$(BUILD_DIR)/$(BINARY_NAME1)

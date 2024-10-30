@@ -10,9 +10,11 @@ RUN apk update && apk add --no-cache \
     gcc \
     musl-dev
 
-RUN git clone https://github.com/go-i2p/go-i2p.git
+RUN git clone -b noise-experimental https://github.com/go-i2p/go-i2p.git
 
 WORKDIR /go/src/app/go-i2p/
+
+ENV DEBUG_I2P=debug
 
 #RUN go build -o /usr/local/bin/go-i2p-router
 RUN make build
