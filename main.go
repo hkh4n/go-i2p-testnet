@@ -228,7 +228,7 @@ func main() {
 			if running {
 				fmt.Println("Testnet is running, not safe to rebuild")
 			} else {
-				err := docker_control.RebuildImages(cli, ctx)
+				err := rebuildImages(cli, ctx)
 				if err != nil {
 					fmt.Printf("failed to rebuild images: %v\n", err)
 				}
@@ -237,7 +237,7 @@ func main() {
 			if running {
 				fmt.Println("Testnet is running, not safe to remove images")
 			} else {
-				err := docker_control.RemoveImages(cli, ctx)
+				err := removeImages(cli, ctx)
 				if err != nil {
 					fmt.Printf("failed to remove images: %v\n", err)
 				}
@@ -276,4 +276,35 @@ func showHelp() {
 	fmt.Println("  remove_images			- Removes all node images")
 	fmt.Println("  add_goi2p_router		- Add a router node (go-i2p)")
 	fmt.Println("  exit					- Exit the CLI")
+}
+
+func buildImages(cli *client.Client, ctx context.Context) error {
+	err := goi2p.BuildImage(cli, ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Println("go-i2p-node built successfully")
+	return nil
+}
+
+func removeImages(cli *client.Client, ctx context.Context) error {
+	err := goi2p.RemoveImage(cli, ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Println("go-i2p-node removed successfully")
+	return nil
+}
+
+func rebuildImages(cli *client.Client, ctx context.Context) error {
+	err := removeImages(cli, ctx)
+	if err != nil {
+		return err
+	}
+	err = buildImages(cli, ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
