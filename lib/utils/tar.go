@@ -3,6 +3,7 @@ package utils
 import (
 	"archive/tar"
 	"bytes"
+	"io"
 )
 
 func CreateTarArchive(filename, content string) (io.Reader, error) {

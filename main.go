@@ -6,7 +6,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"go-i2p-testnet/lib/docker_control"
-	go_i2p "go-i2p-testnet/lib/go-i2p"
+	goi2p "go-i2p-testnet/lib/go-i2p"
 	"log"
 	"os"
 	"os/signal"
@@ -126,10 +126,10 @@ func main() {
 		}
 
 		// Generate router configuration
-		configData := go_i2p.GenerateRouterConfig(routerID, ip, peers)
+		configData := goi2p.GenerateRouterConfig(routerID, ip, peers)
 
 		// Create the container
-		containerID, volumeName, err := go_i2p.CreateRouterContainer(cli, ctx, routerID, ip, networkName, configData)
+		containerID, volumeName, err := goi2p.CreateRouterContainer(cli, ctx, routerID, ip, networkName, configData)
 		if err != nil {
 			log.Fatalf("Error creating router container: %v", err)
 		}
