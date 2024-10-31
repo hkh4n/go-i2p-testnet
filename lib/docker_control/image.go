@@ -8,6 +8,7 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/archive"
+	goi2p "go-i2p-testnet/lib/go-i2p"
 	"io"
 	"path/filepath"
 )
@@ -97,4 +98,35 @@ func imageExists(cli *client.Client, ctx context.Context, imageName string) (boo
 		}
 	}
 	return false, nil
+}
+
+func BuildImages(cli *client.Client, ctx context.Context) error {
+	err := goi2p.BuildImage(cli, ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Println("go-i2p-node built successfully")
+	return nil
+}
+
+func RemoveImages(cli *client.Client, ctx context.Context) error {
+	err := goi2p.RemoveImage(cli, ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Println("go-i2p-node removed successfully")
+	return nil
+}
+
+func RebuildImages(cli *client.Client, ctx context.Context) error {
+	err := RemoveImages(cli, ctx)
+	if err != nil {
+		return err
+	}
+	err = BuildImages(cli, ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

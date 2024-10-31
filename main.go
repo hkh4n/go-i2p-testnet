@@ -25,7 +25,9 @@ var (
 	mu                  sync.Mutex // To protect access to the slices
 )
 
-const NETWORK = "go-i2p-testnet"
+const (
+	NETWORK = "go-i2p-testnet"
+)
 
 // cleanup removes all created Docker resources: containers, volumes, and network.
 func cleanup(cli *client.Client, ctx context.Context, createdContainers []string, createdVolumes []string, networkName string) {
@@ -84,6 +86,15 @@ func start(cli *client.Client, ctx context.Context) {
 		log.Fatalf("Error creating Docker network: %v", err)
 	}
 	fmt.Printf("Created network %s with ID %s\n", networkName, networkID)
+
+	//Create shared volume
+	sharedVolumeName, err := docker_control.CreateSharedVolume(cli, ctx)
+	if err != nil {
+		log.Fatalf("error creating shared volume: %v", err)
+	}
+	createdVolumes = append(createdVolumes, sharedVolumeName)
+	running = true
+	fmt.Println("Network and shared volume created.")
 	/*
 		// Number of routers to create
 		numRouters := 3
@@ -123,41 +134,10 @@ func start(cli *client.Client, ctx context.Context) {
 		}
 
 	*/
-	running = true
-	fmt.Println("All routers are up and running.")
-}
-func buildImages(cli *client.Client, ctx context.Context) error {
-	err := goi2p.BuildImage(cli, ctx)
-	if err != nil {
-		return err
-	}
-	fmt.Println("go-i2p-node built successfully")
-	return nil
+
 }
 
-func removeImages(cli *client.Client, ctx context.Context) error {
-	err := goi2p.RemoveImage(cli, ctx)
-	if err != nil {
-		return err
-	}
-	fmt.Println("go-i2p-node removed successfully")
-	return nil
-}
-
-func rebuildImages(cli *client.Client, ctx context.Context) error {
-	err := removeImages(cli, ctx)
-	if err != nil {
-		return err
-	}
-	err = buildImages(cli, ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func addGOI2Prouter(cli *client.Client, ctx context.Context) error {
+func addGOI2PRouter(cli *client.Client, ctx context.Context) error {
 	mu.Lock()
 	routerID := len(createdGOI2Prouters) + 1
 
@@ -172,7 +152,7 @@ func addGOI2Prouter(cli *client.Client, ctx context.Context) error {
 	configData := goi2p.GenerateRouterConfig(routerID)
 
 	// Create the container
-	containerID, volumeName, err := goi2p.CreateRouterContainer(cli, ctx, routerID, nextIP, NETWORK, configData)
+	containerID, volumeID, err := goi2p.CreateRouterContainer(cli, ctx, routerID, nextIP, NETWORK, configData)
 	if err != nil {
 		return err
 	}
@@ -180,7 +160,9 @@ func addGOI2Prouter(cli *client.Client, ctx context.Context) error {
 	mu.Lock()
 	createdGOI2Prouters = append(createdGOI2Prouters, containerID)
 	createdContainers = append(createdContainers, containerID)
-	createdVolumes = append(createdVolumes, volumeName)
+	createdVolumes = append(createdVolumes, volumeID)
+
+	addCreated(containerID, volumeID)
 
 	fmt.Printf("Added router%d with IP %s\n", routerID, nextIP)
 
@@ -246,7 +228,7 @@ func main() {
 			if running {
 				fmt.Println("Testnet is running, not safe to rebuild")
 			} else {
-				err := rebuildImages(cli, ctx)
+				err := docker_control.RebuildImages(cli, ctx)
 				if err != nil {
 					fmt.Printf("failed to rebuild images: %v\n", err)
 				}
@@ -255,7 +237,7 @@ func main() {
 			if running {
 				fmt.Println("Testnet is running, not safe to remove images")
 			} else {
-				err := removeImages(cli, ctx)
+				err := docker_control.RemoveImages(cli, ctx)
 				if err != nil {
 					fmt.Printf("failed to remove images: %v\n", err)
 				}
@@ -264,7 +246,7 @@ func main() {
 			if !running {
 				fmt.Println("Testnet isn't running")
 			} else {
-				err := addGOI2Prouter(cli, ctx)
+				err := addGOI2PRouter(cli, ctx)
 				if err != nil {
 					fmt.Printf("failed to add router: %v\n", err)
 				}

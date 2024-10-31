@@ -9,6 +9,8 @@ import (
 	"github.com/docker/docker/client"
 )
 
+const SHARED_VOLUME = "go-i2p-shared"
+
 // createRouterContainer sets up a router container with its configuration.
 func CreateRouterContainer(cli *client.Client, ctx context.Context, routerID int, ip string, networkName string, configData string) (string, string, error) {
 	containerName := fmt.Sprintf("router%d", routerID)
@@ -39,6 +41,7 @@ func CreateRouterContainer(cli *client.Client, ctx context.Context, routerID int
 	hostConfig := &container.HostConfig{
 		Binds: []string{
 			fmt.Sprintf("%s:/config", volumeName),
+			fmt.Sprintf("%s:/shared", SHARED_VOLUME),
 		},
 	}
 
