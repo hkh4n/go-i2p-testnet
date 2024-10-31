@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/chzyer/readline"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"go-i2p-testnet/lib/docker_control"
@@ -10,6 +11,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 )
@@ -141,7 +143,44 @@ func main() {
 	// Inform the user that routers are running
 	fmt.Println("All routers are up and running. Press Ctrl+C to stop and clean up.")
 
+	//Begin command loop
+	// Setup readline for command line input
+	rl, err := readline.New("> ")
+	if err != nil {
+		log.Fatalf("Error initializing readline: %v", err)
+	}
+	defer rl.Close()
+	for {
+		line, err := rl.Readline()
+		if err != nil { //EOF
+			break
+		}
+		line = strings.TrimSpace(line)
+		parts := strings.Fields(line)
+		if len(parts) == 0 {
+			continue
+		}
+
+		// handle commands
+		switch parts[0] {
+		case "help":
+			showHelp()
+		case "exit":
+			return
+		default:
+			fmt.Println("Unknown command. Type 'help' for a list of commands")
+		}
+	}
+
 	// Wait for interrupt signal to gracefully shutdown
 	<-sigs
 	fmt.Println("\nReceived interrupt signal. Initiating cleanup...")
+}
+
+func showHelp() {
+	fmt.Println("Available commands:")
+	fmt.Println("  help                  - Show this help message")
+	fmt.Println("  rebuild			   - Rebuild docker images for nodes")
+	fmt.Println("  add_router <nodeType> - Add a router node (go-i2p)")
+	fmt.Println("  exit                  - Exit the CLI")
 }
