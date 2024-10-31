@@ -58,44 +58,22 @@ func cleanup(cli *client.Client, ctx context.Context, createdContainers []string
 	}
 }
 
-func main() {
-	ctx := context.Background()
-
-	// Initialize Docker client
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		log.Fatalf("Error creating Docker client: %v", err)
-	}
-
+var (
+	running = false
 	// Track created containers and volumes for cleanup
-	var createdContainers []string
-	var createdVolumes []string
-	var mu sync.Mutex // To protect access to the slices
+	createdContainers []string
+	createdVolumes    []string
+	mu                sync.Mutex // To protect access to the slices
+)
 
-	// Function to add container and volume IDs to the tracking slices
-	addCreated := func(containerID, volumeID string) {
-		mu.Lock()
-		defer mu.Unlock()
-		createdContainers = append(createdContainers, containerID)
-		createdVolumes = append(createdVolumes, volumeID)
-	}
-	// Ensure cleanup is performed on exit
-	defer func() {
-		if len(createdContainers) == 0 && len(createdVolumes) == 0 {
-			return
-		}
-		cleanup(cli, ctx, createdContainers, createdVolumes, "go-i2p-testnet")
-	}()
+func addCreated(containerID, volumeID string) {
+	mu.Lock()
+	defer mu.Unlock()
+	createdContainers = append(createdContainers, containerID)
+	createdVolumes = append(createdVolumes, volumeID)
+}
 
-	// Set up signal handling to gracefully handle termination
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
-	err = docker_control.BuildDockerImage(cli, ctx, "go-i2p-node", "../docker/go-i2p-node.dockerfile")
-	if err != nil {
-		log.Fatalf("Error building Docker image: %v", err)
-	}
-
+func start(cli *client.Client, ctx context.Context) {
 	// Create Docker network
 	networkName := "go-i2p-testnet"
 	networkID, err := docker_control.CreateDockerNetwork(cli, ctx, networkName)
@@ -103,7 +81,6 @@ func main() {
 		log.Fatalf("Error creating Docker network: %v", err)
 	}
 	fmt.Printf("Created network %s with ID %s\n", networkName, networkID)
-
 	// Number of routers to create
 	numRouters := 3
 
@@ -140,8 +117,34 @@ func main() {
 		// Track the created container and volume for cleanup
 		addCreated(containerID, volumeName)
 	}
-	// Inform the user that routers are running
-	fmt.Println("All routers are up and running. Press Ctrl+C to stop and clean up.")
+	running = true
+	fmt.Println("All routers are up and running.")
+}
+
+func main() {
+	ctx := context.Background()
+
+	// Initialize Docker client
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		log.Fatalf("Error creating Docker client: %v", err)
+	}
+
+	// Ensure cleanup is performed on exit
+	defer func() {
+		if running {
+			cleanup(cli, ctx, createdContainers, createdVolumes, "go-i2p-testnet")
+		}
+	}()
+
+	// Set up signal handling to gracefully handle termination
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	err = docker_control.BuildDockerImage(cli, ctx, "go-i2p-node", "../docker/go-i2p-node.dockerfile")
+	if err != nil {
+		log.Fatalf("Error building Docker image: %v", err)
+	}
 
 	//Begin command loop
 	// Setup readline for command line input
@@ -165,7 +168,24 @@ func main() {
 		switch parts[0] {
 		case "help":
 			showHelp()
+		case "start":
+			if running {
+				fmt.Println("Testnet is already running")
+			} else {
+				start(cli, ctx)
+			}
+		case "stop":
+			if running {
+				cleanup(cli, ctx, createdContainers, createdVolumes, "go-i2p-testnet")
+				running = false
+			} else {
+				fmt.Println("Testnet isn't running")
+			}
 		case "exit":
+			fmt.Println("Exiting...")
+			if running {
+				cleanup(cli, ctx, createdContainers, createdVolumes, "go-i2p-testnet")
+			}
 			return
 		default:
 			fmt.Println("Unknown command. Type 'help' for a list of commands")

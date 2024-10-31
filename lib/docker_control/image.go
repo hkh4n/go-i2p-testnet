@@ -56,6 +56,32 @@ func BuildDockerImage(cli *client.Client, ctx context.Context, imageName string,
 
 	return nil
 }
+
+// removeDockerImage removes a Docker image by name or ID
+func removeDockerImage(cli *client.Client, ctx context.Context, imageName string) error {
+	exists, err := imageExists(cli, ctx, imageName)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("error: cant remove image '%s' that doesn't exist", imageName)
+	}
+	removeOptions := image.RemoveOptions{
+		Force:         true,
+		PruneChildren: true,
+	}
+
+	removedImages, err := cli.ImageRemove(ctx, imageName, removeOptions)
+	if err != nil {
+		return fmt.Errorf("error removing image %s: %v", imageName, err)
+	}
+
+	// Display removed images
+	for _, image := range removedImages {
+		fmt.Printf("Removed image: %s\n", image.Deleted)
+	}
+	return nil
+}
 func imageExists(cli *client.Client, ctx context.Context, imageName string) (bool, error) {
 	ListOptions := image.ListOptions{}
 	images, err := cli.ImageList(ctx, ListOptions)
