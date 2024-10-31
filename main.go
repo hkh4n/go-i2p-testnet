@@ -19,9 +19,10 @@ import (
 var (
 	running = false
 	// Track created containers and volumes for cleanup
-	createdContainers []string
-	createdVolumes    []string
-	mu                sync.Mutex // To protect access to the slices
+	createdGOI2Prouters []string
+	createdContainers   []string
+	createdVolumes      []string
+	mu                  sync.Mutex // To protect access to the slices
 )
 
 const NETWORK = "go-i2p-testnet"
@@ -83,42 +84,45 @@ func start(cli *client.Client, ctx context.Context) {
 		log.Fatalf("Error creating Docker network: %v", err)
 	}
 	fmt.Printf("Created network %s with ID %s\n", networkName, networkID)
-	// Number of routers to create
-	numRouters := 3
+	/*
+		// Number of routers to create
+		numRouters := 3
 
-	// IP addresses for the routers
-	baseIP := "172.28.0."
-	routerIPs := make([]string, numRouters)
-	for i := 0; i < numRouters; i++ {
-		routerIPs[i] = fmt.Sprintf("%s%d", baseIP, i+2) // Starting from .2
-	}
+		// IP addresses for the routers
+		baseIP := "172.28.0."
+		routerIPs := make([]string, numRouters)
+		for i := 0; i < numRouters; i++ {
+			routerIPs[i] = fmt.Sprintf("%s%d", baseIP, i+2) // Starting from .2
+		}
 
-	// Spin up routers
-	for i := 0; i < numRouters; i++ {
-		routerID := i + 1
-		ip := routerIPs[i]
+		// Spin up routers
+		for i := 0; i < numRouters; i++ {
+			routerID := i + 1
+			ip := routerIPs[i]
 
-		// Collect peers (other router IPs)
-		peers := make([]string, 0)
-		for j, peerIP := range routerIPs {
-			if j != i {
-				peers = append(peers, peerIP)
+			// Collect peers (other router IPs)
+			peers := make([]string, 0)
+			for j, peerIP := range routerIPs {
+				if j != i {
+					peers = append(peers, peerIP)
+				}
 			}
+
+			// Generate router configuration
+			configData := goi2p.GenerateRouterConfig(routerID)
+
+			// Create the container
+			containerID, volumeName, err := goi2p.CreateRouterContainer(cli, ctx, routerID, ip, networkName, configData)
+			if err != nil {
+				log.Fatalf("Error creating router container: %v", err)
+			}
+			fmt.Printf("Started router%d with IP %s\n", routerID, ip)
+
+			// Track the created container and volume for cleanup
+			addCreated(containerID, volumeName)
 		}
 
-		// Generate router configuration
-		configData := goi2p.GenerateRouterConfig(routerID)
-
-		// Create the container
-		containerID, volumeName, err := goi2p.CreateRouterContainer(cli, ctx, routerID, ip, networkName, configData)
-		if err != nil {
-			log.Fatalf("Error creating router container: %v", err)
-		}
-		fmt.Printf("Started router%d with IP %s\n", routerID, ip)
-
-		// Track the created container and volume for cleanup
-		addCreated(containerID, volumeName)
-	}
+	*/
 	running = true
 	fmt.Println("All routers are up and running.")
 }
@@ -149,6 +153,36 @@ func rebuildImages(cli *client.Client, ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func addGOI2Prouter(cli *client.Client, ctx context.Context) error {
+	mu.Lock()
+	routerID := len(createdGOI2Prouters) + 1
+
+	// Calculate next IP
+	incr := routerID + 1
+	if incr == 256 {
+		return fmt.Errorf("maximum capacity reached (255)")
+	}
+	nextIP := fmt.Sprintf("172.28.0.%d", incr)
+	mu.Unlock()
+
+	configData := goi2p.GenerateRouterConfig(routerID)
+
+	// Create the container
+	containerID, volumeName, err := goi2p.CreateRouterContainer(cli, ctx, routerID, nextIP, NETWORK, configData)
+	if err != nil {
+		return err
+	}
+
+	mu.Lock()
+	createdGOI2Prouters = append(createdGOI2Prouters, containerID)
+	createdContainers = append(createdContainers, containerID)
+	createdVolumes = append(createdVolumes, volumeName)
+
+	fmt.Printf("Added router%d with IP %s\n", routerID, nextIP)
 
 	return nil
 }
@@ -226,6 +260,15 @@ func main() {
 					fmt.Printf("failed to remove images: %v\n", err)
 				}
 			}
+		case "add_goi2p_router":
+			if !running {
+				fmt.Println("Testnet isn't running")
+			} else {
+				err := addGOI2Prouter(cli, ctx)
+				if err != nil {
+					fmt.Printf("failed to add router: %v\n", err)
+				}
+			}
 		case "exit":
 			fmt.Println("Exiting...")
 			if running {
@@ -244,11 +287,11 @@ func main() {
 
 func showHelp() {
 	fmt.Println("Available commands:")
-	fmt.Println("  help			- Show this help message")
-	fmt.Println("  start			- Start routers")
-	fmt.Println("  stop			- Stop and cleanup routers")
-	fmt.Println("  rebuild		- Rebuild docker images for nodes")
-	fmt.Println("  remove_images	- Removes all node images")
-	//fmt.Println("  add_router <nodeType> - Add a router node (go-i2p)")
-	fmt.Println("  exit		- Exit the CLI")
+	fmt.Println("  help					- Show this help message")
+	fmt.Println("  start					- Start routers")
+	fmt.Println("  stop					- Stop and cleanup routers")
+	fmt.Println("  rebuild				- Rebuild docker images for nodes")
+	fmt.Println("  remove_images			- Removes all node images")
+	fmt.Println("  add_goi2p_router		- Add a router node (go-i2p)")
+	fmt.Println("  exit					- Exit the CLI")
 }
