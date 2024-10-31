@@ -7,6 +7,7 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/go-i2p/go-i2p/lib/config"
 	"go-i2p-testnet/lib/utils"
+	"gopkg.in/yaml.v3"
 	"log"
 	"os"
 	"path/filepath"
@@ -51,7 +52,7 @@ func CopyConfigToVolume(cli *client.Client, ctx context.Context, volumeName stri
 		Image:      "alpine",
 		Tty:        false,
 		WorkingDir: "/config",
-		Cmd:        []string{"sh", "-c", "sleep 1d"},
+		Cmd:        []string{"sh", "-c", "mkdir -p /config/.go-i2p && sleep 1d"},
 	}
 
 	hostConfig := &container.HostConfig{
@@ -79,7 +80,7 @@ func CopyConfigToVolume(cli *client.Client, ctx context.Context, volumeName stri
 	}
 
 	// Copy the configuration file into the container
-	tarReader, err := utils.CreateTarArchive("router.config", configData)
+	tarReader, err := utils.CreateTarArchive(".go-i2p/config.yaml", configData)
 	if err != nil {
 		return fmt.Errorf("error creating tar archive: %v", err)
 	}
@@ -99,23 +100,16 @@ func CopyConfigToVolume(cli *client.Client, ctx context.Context, volumeName stri
 	return nil
 }
 
-func GenerateRouterConfig(routerID int, ip string, peers []string) string {
+func GenerateRouterConfig(routerID int) string {
 	// Initialize router-specific configuration
 	routerConfig := initializeRouterConfig(routerID)
 
 	// Define common settings for each router instance
-	configData := fmt.Sprintf(`
-		netID=12345
-		reseed.disable=true
-		router.transport.udp.host=%s
-		router.transport.udp.port=7654
-		netDb.path=%s
-	`, ip, routerConfig.NetDb.Path)
-
-	// Add peers to the configuration
-	for i, peer := range peers {
-		configData += fmt.Sprintf("peer.%d=%s\n", i+1, peer)
+	configDataYAML, err := yaml.Marshal(routerConfig)
+	if err != nil {
+		panic(err)
 	}
-
-	return configData
+	configDataYAMLstr := string(configDataYAML)
+	fmt.Println(configDataYAMLstr)
+	return configDataYAMLstr
 }

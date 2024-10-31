@@ -126,7 +126,7 @@ func main() {
 		}
 
 		// Generate router configuration
-		configData := goi2p.GenerateRouterConfig(routerID, ip, peers)
+		configData := goi2p.GenerateRouterConfig(routerID)
 
 		// Create the container
 		containerID, volumeName, err := goi2p.CreateRouterContainer(cli, ctx, routerID, ip, networkName, configData)
