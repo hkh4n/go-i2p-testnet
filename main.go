@@ -122,30 +122,34 @@ func start(cli *client.Client, ctx context.Context) {
 	running = true
 	fmt.Println("All routers are up and running.")
 }
-func buildImages(cli *client.Client, ctx context.Context) {
+func buildImages(cli *client.Client, ctx context.Context) error {
 	err := goi2p.BuildImage(cli, ctx)
 	if err != nil {
-		panic(err) // TODO: handle better
+		return err
 	}
+	fmt.Println("go-i2p-node built successfully")
+	return nil
 }
 
-func removeImages(cli *client.Client, ctx context.Context) {
+func removeImages(cli *client.Client, ctx context.Context) error {
 	err := goi2p.RemoveImage(cli, ctx)
 	if err != nil {
-		panic(err) // TODO: handle better
+		return err
 	}
+	fmt.Println("go-i2p-node removed successfully")
+	return nil
 }
 
 func rebuildImages(cli *client.Client, ctx context.Context) error {
-	err := goi2p.RemoveImage(cli, ctx)
+	err := removeImages(cli, ctx)
 	if err != nil {
 		return err
 	}
-	err = goi2p.BuildImage(cli, ctx)
+	err = buildImages(cli, ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Println("go-i2p-node rebuilt successfuly")
+
 	return nil
 }
 
@@ -213,6 +217,15 @@ func main() {
 					fmt.Printf("failed to rebuild images: %v\n", err)
 				}
 			}
+		case "remove_images":
+			if running {
+				fmt.Println("Testnet is running, not safe to remove images")
+			} else {
+				err := removeImages(cli, ctx)
+				if err != nil {
+					fmt.Printf("failed to remove images: %v\n", err)
+				}
+			}
 		case "exit":
 			fmt.Println("Exiting...")
 			if running {
@@ -231,10 +244,11 @@ func main() {
 
 func showHelp() {
 	fmt.Println("Available commands:")
-	fmt.Println("  help		- Show this help message")
-	fmt.Println("  start		- Start routers")
-	fmt.Println("  stop		- Stop and cleanup routers")
-	fmt.Println("  rebuild	- Rebuild docker images for nodes")
+	fmt.Println("  help			- Show this help message")
+	fmt.Println("  start			- Start routers")
+	fmt.Println("  stop			- Stop and cleanup routers")
+	fmt.Println("  rebuild		- Rebuild docker images for nodes")
+	fmt.Println("  remove_images	- Removes all node images")
 	//fmt.Println("  add_router <nodeType> - Add a router node (go-i2p)")
-	fmt.Println("  exit                  - Exit the CLI")
+	fmt.Println("  exit		- Exit the CLI")
 }
