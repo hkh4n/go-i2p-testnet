@@ -16,6 +16,16 @@ import (
 	"syscall"
 )
 
+var (
+	running = false
+	// Track created containers and volumes for cleanup
+	createdContainers []string
+	createdVolumes    []string
+	mu                sync.Mutex // To protect access to the slices
+)
+
+const NETWORK = "go-i2p-testnet"
+
 // cleanup removes all created Docker resources: containers, volumes, and network.
 func cleanup(cli *client.Client, ctx context.Context, createdContainers []string, createdVolumes []string, networkName string) {
 	fmt.Println("\nCleaning up Docker resources...")
@@ -58,14 +68,6 @@ func cleanup(cli *client.Client, ctx context.Context, createdContainers []string
 	}
 }
 
-var (
-	running = false
-	// Track created containers and volumes for cleanup
-	createdContainers []string
-	createdVolumes    []string
-	mu                sync.Mutex // To protect access to the slices
-)
-
 func addCreated(containerID, volumeID string) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -75,7 +77,7 @@ func addCreated(containerID, volumeID string) {
 
 func start(cli *client.Client, ctx context.Context) {
 	// Create Docker network
-	networkName := "go-i2p-testnet"
+	networkName := NETWORK
 	networkID, err := docker_control.CreateDockerNetwork(cli, ctx, networkName)
 	if err != nil {
 		log.Fatalf("Error creating Docker network: %v", err)
@@ -120,6 +122,32 @@ func start(cli *client.Client, ctx context.Context) {
 	running = true
 	fmt.Println("All routers are up and running.")
 }
+func buildImages(cli *client.Client, ctx context.Context) {
+	err := goi2p.BuildImage(cli, ctx)
+	if err != nil {
+		panic(err) // TODO: handle better
+	}
+}
+
+func removeImages(cli *client.Client, ctx context.Context) {
+	err := goi2p.RemoveImage(cli, ctx)
+	if err != nil {
+		panic(err) // TODO: handle better
+	}
+}
+
+func rebuildImages(cli *client.Client, ctx context.Context) error {
+	err := goi2p.RemoveImage(cli, ctx)
+	if err != nil {
+		return err
+	}
+	err = goi2p.BuildImage(cli, ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Println("go-i2p-node rebuilt successfuly")
+	return nil
+}
 
 func main() {
 	ctx := context.Background()
@@ -133,18 +161,13 @@ func main() {
 	// Ensure cleanup is performed on exit
 	defer func() {
 		if running {
-			cleanup(cli, ctx, createdContainers, createdVolumes, "go-i2p-testnet")
+			cleanup(cli, ctx, createdContainers, createdVolumes, NETWORK)
 		}
 	}()
 
 	// Set up signal handling to gracefully handle termination
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
-	err = docker_control.BuildDockerImage(cli, ctx, "go-i2p-node", "../docker/go-i2p-node.dockerfile")
-	if err != nil {
-		log.Fatalf("Error building Docker image: %v", err)
-	}
 
 	//Begin command loop
 	// Setup readline for command line input
@@ -176,15 +199,24 @@ func main() {
 			}
 		case "stop":
 			if running {
-				cleanup(cli, ctx, createdContainers, createdVolumes, "go-i2p-testnet")
+				cleanup(cli, ctx, createdContainers, createdVolumes, NETWORK)
 				running = false
 			} else {
 				fmt.Println("Testnet isn't running")
 			}
+		case "rebuild":
+			if running {
+				fmt.Println("Testnet is running, not safe to rebuild")
+			} else {
+				err := rebuildImages(cli, ctx)
+				if err != nil {
+					fmt.Printf("failed to rebuild images: %v\n", err)
+				}
+			}
 		case "exit":
 			fmt.Println("Exiting...")
 			if running {
-				cleanup(cli, ctx, createdContainers, createdVolumes, "go-i2p-testnet")
+				cleanup(cli, ctx, createdContainers, createdVolumes, NETWORK)
 			}
 			return
 		default:
@@ -199,8 +231,10 @@ func main() {
 
 func showHelp() {
 	fmt.Println("Available commands:")
-	fmt.Println("  help                  - Show this help message")
-	fmt.Println("  rebuild			   - Rebuild docker images for nodes")
-	fmt.Println("  add_router <nodeType> - Add a router node (go-i2p)")
+	fmt.Println("  help		- Show this help message")
+	fmt.Println("  start		- Start routers")
+	fmt.Println("  stop		- Stop and cleanup routers")
+	fmt.Println("  rebuild	- Rebuild docker images for nodes")
+	//fmt.Println("  add_router <nodeType> - Add a router node (go-i2p)")
 	fmt.Println("  exit                  - Exit the CLI")
 }

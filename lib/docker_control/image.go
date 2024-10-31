@@ -58,7 +58,7 @@ func BuildDockerImage(cli *client.Client, ctx context.Context, imageName string,
 }
 
 // removeDockerImage removes a Docker image by name or ID
-func removeDockerImage(cli *client.Client, ctx context.Context, imageName string) error {
+func RemoveDockerImage(cli *client.Client, ctx context.Context, imageName string) error {
 	exists, err := imageExists(cli, ctx, imageName)
 	if err != nil {
 		return err
