@@ -4,164 +4,15 @@ import (
 	"context"
 	"fmt"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
-	"github.com/go-i2p/go-i2p/lib/config"
 	"go-i2p-testnet/lib/docker_control"
+	go_i2p "go-i2p-testnet/lib/go-i2p"
 	"log"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"sync"
 	"syscall"
 )
-
-// "go-i2p-testnet/lib/docker_control"
-// initializeRouterConfig sets up a router-specific configuration for each instance
-func initializeRouterConfig(routerID int) *config.RouterConfig {
-	// Define base directory for this router's configuration
-	baseDir := filepath.Join("testnet", fmt.Sprintf("router%d", routerID))
-	err := os.MkdirAll(baseDir, os.ModePerm)
-	if err != nil {
-		log.Printf("failed to create baseDir: %v", err)
-		return nil
-	}
-
-	// Assign each router its own netDb and working directory
-	netDbPath := filepath.Join(baseDir, "netDb")
-	workingDir := filepath.Join(baseDir, "config")
-	err = os.MkdirAll(netDbPath, os.ModePerm)
-	if err != nil {
-		log.Printf("failed to create netDbPath: %v", err)
-		return nil
-	}
-	err = os.MkdirAll(workingDir, os.ModePerm)
-	if err != nil {
-		log.Printf("failed to create workingDir: %v", err)
-		return nil
-	}
-
-	// Create and return a RouterConfig instance
-	return &config.RouterConfig{
-		BaseDir:    baseDir,
-		WorkingDir: workingDir,
-		NetDb:      &config.NetDbConfig{Path: netDbPath},
-		Bootstrap:  &config.DefaultBootstrapConfig, // Modify as needed for custom bootstrap setup
-	}
-}
-func generateRouterConfig(routerID int, ip string, peers []string) string {
-	// Initialize router-specific configuration
-	routerConfig := initializeRouterConfig(routerID)
-
-	// Define common settings for each router instance
-	configData := fmt.Sprintf(`
-		netID=12345
-		reseed.disable=true
-		router.transport.udp.host=%s
-		router.transport.udp.port=7654
-		netDb.path=%s
-	`, ip, routerConfig.NetDb.Path)
-
-	// Add peers to the configuration
-	for i, peer := range peers {
-		configData += fmt.Sprintf("peer.%d=%s\n", i+1, peer)
-	}
-
-	return configData
-}
-func createDockerNetwork(cli *client.Client, ctx context.Context, networkName string) (string, error) {
-	// Check if the network already exists
-	networks, err := cli.NetworkList(ctx, network.ListOptions{})
-	if err != nil {
-		return "", err
-	}
-	for _, net := range networks {
-		if net.Name == networkName {
-			fmt.Printf("Network %s already exists. Using existing network.\n", networkName)
-			return net.ID, nil
-		}
-	}
-
-	// Create the network
-	createOptions := network.CreateOptions{
-		Driver: "bridge",
-		IPAM: &network.IPAM{
-			Config: []network.IPAMConfig{
-				{
-					Subnet: "172.28.0.0/16",
-				},
-			},
-		},
-	}
-	resp, err := cli.NetworkCreate(ctx, networkName, createOptions)
-	if err != nil {
-		return "", err
-	}
-	fmt.Printf("Created network %s with ID %s\n", networkName, resp.ID)
-	return resp.ID, nil
-}
-
-// createRouterContainer sets up a router container with its configuration.
-func createRouterContainer(cli *client.Client, ctx context.Context, routerID int, ip string, networkName string, configData string) (string, string, error) {
-	containerName := fmt.Sprintf("router%d", routerID)
-
-	// Create a temporary volume for the configuration
-	volumeName := fmt.Sprintf("router%d_config", routerID)
-	createOptions := volume.CreateOptions{
-		Name: volumeName,
-	}
-	_, err := cli.VolumeCreate(ctx, createOptions)
-	if err != nil {
-		return "", "", fmt.Errorf("error creating volume: %v", err)
-	}
-
-	// Copy the configuration data into the volume
-	err = docker_control.CopyConfigToVolume(cli, ctx, volumeName, configData)
-	if err != nil {
-		return "", "", fmt.Errorf("error copying config to volume: %v", err)
-	}
-
-	// Prepare container configuration
-	containerConfig := &container.Config{
-		Image: "go-i2p-node",
-		Cmd:   []string{"go-i2p"},
-	}
-
-	// Host configuration
-	hostConfig := &container.HostConfig{
-		Binds: []string{
-			fmt.Sprintf("%s:/config", volumeName),
-		},
-	}
-
-	// Network settings
-	endpointSettings := &network.EndpointSettings{
-		IPAMConfig: &network.EndpointIPAMConfig{
-			IPv4Address: ip,
-		},
-	}
-
-	networkingConfig := &network.NetworkingConfig{
-		EndpointsConfig: map[string]*network.EndpointSettings{
-			networkName: endpointSettings,
-		},
-	}
-
-	// Create the container
-	resp, err := cli.ContainerCreate(ctx, containerConfig, hostConfig, networkingConfig, nil, containerName)
-	if err != nil {
-		return volumeName, "", fmt.Errorf("error creating container: %v", err)
-	}
-
-	// Start the container
-	startOptions := container.StartOptions{}
-	if err := cli.ContainerStart(ctx, resp.ID, startOptions); err != nil {
-		return volumeName, "", fmt.Errorf("error starting container: %v", err)
-	}
-
-	return resp.ID, volumeName, nil
-}
 
 // cleanup removes all created Docker resources: containers, volumes, and network.
 func cleanup(cli *client.Client, ctx context.Context, createdContainers []string, createdVolumes []string, networkName string) {
@@ -245,7 +96,7 @@ func main() {
 
 	// Create Docker network
 	networkName := "go-i2p-testnet"
-	networkID, err := createDockerNetwork(cli, ctx, networkName)
+	networkID, err := docker_control.CreateDockerNetwork(cli, ctx, networkName)
 	if err != nil {
 		log.Fatalf("Error creating Docker network: %v", err)
 	}
@@ -275,10 +126,10 @@ func main() {
 		}
 
 		// Generate router configuration
-		configData := generateRouterConfig(routerID, ip, peers)
+		configData := go_i2p.GenerateRouterConfig(routerID, ip, peers)
 
 		// Create the container
-		containerID, volumeName, err := createRouterContainer(cli, ctx, routerID, ip, networkName, configData)
+		containerID, volumeName, err := go_i2p.CreateRouterContainer(cli, ctx, routerID, ip, networkName, configData)
 		if err != nil {
 			log.Fatalf("Error creating router container: %v", err)
 		}
