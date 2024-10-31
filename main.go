@@ -151,13 +151,13 @@ func createRouterContainer(cli *client.Client, ctx context.Context, routerID int
 	// Create the container
 	resp, err := cli.ContainerCreate(ctx, containerConfig, hostConfig, networkingConfig, nil, containerName)
 	if err != nil {
-		return volumeName, "", fmt.Errorf("Error creating container: %v", err)
+		return volumeName, "", fmt.Errorf("error creating container: %v", err)
 	}
 
 	// Start the container
 	startOptions := container.StartOptions{}
 	if err := cli.ContainerStart(ctx, resp.ID, startOptions); err != nil {
-		return volumeName, "", fmt.Errorf("Error starting container: %v", err)
+		return volumeName, "", fmt.Errorf("error starting container: %v", err)
 	}
 
 	return resp.ID, volumeName, nil
