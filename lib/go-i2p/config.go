@@ -152,7 +152,9 @@ func GenerateRouterConfig(routerID int) string {
 	log.WithField("routerID", routerID).Debug("Starting router config generation")
 	// Initialize router-specific configuration
 	routerConfig := initializeRouterConfig(routerID)
-	log.WithField("routerID", routerID).Error("Failed to initialize router config")
+	if routerConfig == nil {
+		log.WithField("routerID", routerID).Error("Failed to initialize router config")
+	}
 	// Define common settings for each router instance
 	log.Debug("Marshaling router configuration to YAML")
 	configDataYAML, err := yaml.Marshal(routerConfig)

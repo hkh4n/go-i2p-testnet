@@ -89,14 +89,15 @@ func cleanup(cli *client.Client, ctx context.Context, createdContainers []string
 }
 
 func addCreated(containerID, volumeID string) {
-	mu.Lock()
-	defer mu.Unlock()
+	//mu.Lock() //For some reason, this freezes
+	//defer mu.Unlock()
 	log.WithFields(map[string]interface{}{
 		"containerID": containerID,
 		"volumeID":    volumeID,
 	}).Debug("Tracking new container and volume")
 	createdContainers = append(createdContainers, containerID)
 	createdVolumes = append(createdVolumes, volumeID)
+	return
 }
 
 func start(cli *client.Client, ctx context.Context) {
@@ -167,6 +168,7 @@ func start(cli *client.Client, ctx context.Context) {
 
 func addGOI2PRouter(cli *client.Client, ctx context.Context) error {
 	mu.Lock()
+	defer mu.Unlock()
 	routerID := len(createdGOI2Prouters) + 1
 
 	log.WithField("routerID", routerID).Debug("Adding new GO-I2P router")
@@ -175,11 +177,9 @@ func addGOI2PRouter(cli *client.Client, ctx context.Context) error {
 	incr := routerID + 1
 	if incr == 256 {
 		log.Error("Maximum number of nodes reached (255)")
-		mu.Unlock()
 		return fmt.Errorf("too many nodes! (255)")
 	}
 	nextIP := fmt.Sprintf("172.28.0.%d", incr)
-	mu.Unlock()
 
 	log.WithFields(map[string]interface{}{
 		"routerID": routerID,
@@ -196,7 +196,6 @@ func addGOI2PRouter(cli *client.Client, ctx context.Context) error {
 		return err
 	}
 
-	mu.Lock()
 	log.WithFields(map[string]interface{}{
 		"routerID":    routerID,
 		"containerID": containerID,
@@ -208,8 +207,6 @@ func addGOI2PRouter(cli *client.Client, ctx context.Context) error {
 	createdVolumes = append(createdVolumes, volumeID)
 
 	addCreated(containerID, volumeID)
-	mu.Unlock()
-
 	return nil
 }
 

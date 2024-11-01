@@ -1,6 +1,6 @@
 ## Notes
 
-This is in active development and not in working order yet.
+This is in active development and not in working order yet. It is highly unstable and will fluctuate in changes.
 
 ## TO DO
  - [X] Lifecycle startup + shutdown
