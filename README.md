@@ -15,3 +15,23 @@ This is in active development and not in working order yet.
    - [ ] i2p java router node
  - [ ] i2pd nodes
  - [ ] i2p java router nodes
+ - 
+## Verbosity ##
+Logging can be enabled and configured using the DEBUG_I2P environment variable. By default, logging is disabled.
+
+There are three available log levels:
+
+- Debug
+```shell
+export DEBUG_TESTNET=debug
+```
+- Warn
+```shell
+export DEBUG_TESTNET=warn
+```
+- Error
+```shell
+export DEBUG_TESTNET=error
+```
+
+If I2P_TESTNET is set to an unrecognized variable, it will fall back to "debug". Note, that this only accounts for verbosity in the testnet program itself, and not the nodes.
