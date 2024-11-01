@@ -411,15 +411,15 @@ func main() {
 
 func showHelp() {
 	fmt.Println("Available commands:")
-	fmt.Println("  help					- Show this help message")
-	fmt.Println("  start					- Start routers")
-	fmt.Println("  stop					- Stop and cleanup routers")
-	fmt.Println("  build					- Build docker images for nodes")
-	fmt.Println("  rebuild				- Rebuild docker images for nodes")
-	fmt.Println("  remove_images			- Removes all node images")
-	fmt.Println("  add_goi2p_router		- Add a router node (go-i2p)")
-	fmt.Println("  add_i2pd_router		- Add a router node (i2pd)")
-	fmt.Println("  exit					- Exit the CLI")
+	fmt.Println("  help						- Show this help message")
+	fmt.Println("  start						- Start routers")
+	fmt.Println("  stop						- Stop and cleanup routers")
+	fmt.Println("  build						- Build docker images for nodes")
+	fmt.Println("  rebuild					- Rebuild docker images for nodes")
+	fmt.Println("  remove_images					- Removes all node images")
+	fmt.Println("  add_goi2p_router				- Add a router node (go-i2p)")
+	fmt.Println("  add_i2pd_router				- Add a router node (i2pd)")
+	fmt.Println("  exit						- Exit the CLI")
 }
 
 func buildImages(cli *client.Client, ctx context.Context) error {
