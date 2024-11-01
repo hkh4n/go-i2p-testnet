@@ -126,48 +126,39 @@ func start(cli *client.Client, ctx context.Context) {
 	createdVolumes = append(createdVolumes, sharedVolumeName)
 	running = true
 	log.WithField("volumeName", sharedVolumeName).Debug("Successfully created shared volume")
-	/*
-		// Number of routers to create
-		numRouters := 3
-
-		// IP addresses for the routers
-		baseIP := "172.28.0."
-		routerIPs := make([]string, numRouters)
-		for i := 0; i < numRouters; i++ {
-			routerIPs[i] = fmt.Sprintf("%s%d", baseIP, i+2) // Starting from .2
-		}
-
-		// Spin up routers
-		for i := 0; i < numRouters; i++ {
-			routerID := i + 1
-			ip := routerIPs[i]
-
-			// Collect peers (other router IPs)
-			peers := make([]string, 0)
-			for j, peerIP := range routerIPs {
-				if j != i {
-					peers = append(peers, peerIP)
-				}
-			}
-
-			// Generate router configuration
-			configData := goi2p.GenerateRouterConfig(routerID)
-
-			// Create the container
-			containerID, volumeName, err := goi2p.CreateRouterContainer(cli, ctx, routerID, ip, networkName, configData)
-			if err != nil {
-				log.Fatalf("Error creating router container: %v", err)
-			}
-			fmt.Printf("Started router%d with IP %s\n", routerID, ip)
-
-			// Track the created container and volume for cleanup
-			addCreated(containerID, volumeName)
-		}
-
-	*/
-
 }
 
+func status(cli *client.Client, ctx context.Context) {
+	log.Debug("Fetching status of router containers")
+
+	// List all containers (both running and stopped)
+	containerListOptions := container.ListOptions{
+		All: true,
+	}
+	containers, err := cli.ContainerList(ctx, containerListOptions)
+	if err != nil {
+		log.WithError(err).Error("Failed to list Docker containers")
+		fmt.Println("Error: failed to list Docker containers:", err)
+		return
+	}
+
+	// Filter containers whose names start with "router"
+	fmt.Println("Current router containers:")
+	found := false
+	for _, container := range containers {
+		for _, name := range container.Names {
+			// Docker prepends "/" to container names
+			if strings.HasPrefix(name, "/router") {
+				found = true
+				fmt.Printf("Container ID: %s, Name: %s, Image: %s, Status: %s\n",
+					container.ID[:12], name[1:], container.Image, container.Status)
+			}
+		}
+	}
+	if !found {
+		fmt.Println("No router containers are running.")
+	}
+}
 func addGOI2PRouter(cli *client.Client, ctx context.Context) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -212,7 +203,7 @@ func addGOI2PRouter(cli *client.Client, ctx context.Context) error {
 	return nil
 }
 
-func addI2pdRouter(cli *client.Client, ctx context.Context) error {
+func addI2PDRouter(cli *client.Client, ctx context.Context) error {
 	mu.Lock()
 	defer mu.Unlock()
 	routerID := len(createdRouters) + 1
@@ -349,6 +340,8 @@ func main() {
 			} else {
 				fmt.Println("Testnet isn't running")
 			}
+		case "status":
+			status(cli, ctx)
 		case "build":
 			if running {
 				fmt.Println("Testnet is running, not safe to build")
@@ -389,7 +382,7 @@ func main() {
 			if !running {
 				fmt.Println("Testnet isn't running")
 			} else {
-				err := addI2pdRouter(cli, ctx)
+				err := addI2PDRouter(cli, ctx)
 				if err != nil {
 					fmt.Printf("failed to add router: %v\n", err)
 				}
@@ -415,6 +408,7 @@ func showHelp() {
 	fmt.Println("  help						- Show this help message")
 	fmt.Println("  start						- Start the testnet")
 	fmt.Println("  stop						- Stop testnet and cleanup routers")
+	fmt.Println("  status 						- Show status")
 	fmt.Println("  build						- Build docker images for nodes")
 	fmt.Println("  rebuild					- Rebuild docker images for nodes")
 	fmt.Println("  remove_images					- Removes all node images")
