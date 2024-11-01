@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/chzyer/readline"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 	"go-i2p-testnet/lib/docker_control"
 	goi2p "go-i2p-testnet/lib/go-i2p"
@@ -218,7 +219,7 @@ func addI2pdRouter(cli *client.Client, ctx context.Context) error {
 
 	log.WithField("routerID", routerID).Debug("Adding new i2pd router")
 
-	//Calculate next IP
+	// Calculate next IP
 	incr := routerID + 1
 	if incr == 256 {
 		log.Error("Maximum number of nodes reached (255)")
@@ -230,9 +231,60 @@ func addI2pdRouter(cli *client.Client, ctx context.Context) error {
 		"routerID": routerID,
 		"ip":       nextIP,
 	}).Debug("Generating router configuration")
-	panic("unimplimented")
-	//configData := i2pd.
 
+	// Generate the configuration data
+	configData, err := i2pd.GenerateDefaultRouterConfig(routerID)
+	if err != nil {
+		log.WithError(err).Error("Failed to generate i2pd router config")
+		return err
+	}
+
+	// Create configuration volume
+	volumeName := fmt.Sprintf("i2pd_router%d_config", routerID)
+	createOptions := volume.CreateOptions{
+		Name: volumeName,
+	}
+	_, err = cli.VolumeCreate(ctx, createOptions)
+	if err != nil {
+		log.WithFields(map[string]interface{}{
+			"volumeName": volumeName,
+			"error":      err,
+		}).Error("Failed to create volume")
+		return err
+	}
+
+	// Copy configuration to volume
+	err = i2pd.CopyConfigToVolume(cli, ctx, volumeName, configData)
+	if err != nil {
+		log.WithFields(map[string]interface{}{
+			"volumeName": volumeName,
+			"error":      err,
+		}).Error("Failed to copy config to volume")
+		return err
+	}
+
+	// Create and start router container
+	containerID, err := i2pd.CreateRouterContainer(cli, ctx, routerID, nextIP, NETWORK, volumeName)
+	if err != nil {
+		log.WithError(err).Error("Failed to create i2pd router container")
+		return err
+	}
+
+	log.WithFields(map[string]interface{}{
+		"routerID":    routerID,
+		"containerID": containerID,
+		"volumeID":    volumeName,
+		"ip":          nextIP,
+	}).Debug("Adding router to tracking lists")
+
+	// Update tracking lists
+	createdRouters = append(createdRouters, containerID)
+	createdContainers = append(createdContainers, containerID)
+	createdVolumes = append(createdVolumes, volumeName)
+
+	// Add to any additional tracking structures if necessary
+	addCreated(containerID, volumeName)
+	return nil
 }
 
 func main() {
@@ -332,6 +384,15 @@ func main() {
 					fmt.Printf("failed to add router: %v\n", err)
 				}
 			}
+		case "add_i2pd_router":
+			if !running {
+				fmt.Println("Testnet isn't running")
+			} else {
+				err := addI2pdRouter(cli, ctx)
+				if err != nil {
+					fmt.Printf("failed to add router: %v\n", err)
+				}
+			}
 		case "exit":
 			fmt.Println("Exiting...")
 			if running {
@@ -357,6 +418,7 @@ func showHelp() {
 	fmt.Println("  rebuild				- Rebuild docker images for nodes")
 	fmt.Println("  remove_images			- Removes all node images")
 	fmt.Println("  add_goi2p_router		- Add a router node (go-i2p)")
+	fmt.Println("  add_i2pd_router		- Add a router node (i2pd)")
 	fmt.Println("  exit					- Exit the CLI")
 }
 

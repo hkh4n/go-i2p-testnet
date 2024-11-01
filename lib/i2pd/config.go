@@ -1,5 +1,15 @@
 package i2pd
 
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
+	"go-i2p-testnet/lib/utils"
+	"gopkg.in/ini.v1"
+)
+
 type I2PDConfig struct {
 	// Global options (before any section)
 	TunnelsConf string `ini:"tunconf"`
@@ -198,7 +208,7 @@ type CPUExtConfig struct {
 	Force bool `ini:"force"`
 }
 
-func Default() *I2PDConfig {
+func GenerateDefaultI2PDConfig() *I2PDConfig {
 	return &I2PDConfig{
 		// Global options (before any section)
 		TunnelsConf: "",
@@ -378,4 +388,124 @@ func Default() *I2PDConfig {
 			Force: false,
 		},
 	}
+}
+
+func GenerateDefaultRouterConfig(routerID int) (string, error) {
+	log.WithField("routerID", routerID).Debug("Starting i2pd router config generation")
+
+	// Initialize default configuration
+	config := GenerateDefaultI2PDConfig()
+
+	// Modify configuration as needed
+	//config.Daemon = false
+	//config.IPv6 = false
+	//config.SSU = false
+	//config.Notransit = true
+	//config.NTCP2.Enabled = true
+	//config.NTCP2.Published = true
+	//config.NTCP2.Port = 4567 + routerID // Assign a unique port per router
+	//config.HTTP.Address = "0.0.0.0"
+	//config.HTTP.Port = 7070 + routerID // Unique port for web console if needed
+
+	// Set reseed options appropriate for testnet
+	//config.Reseed.Verify = false
+	//config.Reseed.URLs = ""
+	//config.Reseed.Threshold = 0
+
+	// Create an INI file from the struct
+	iniFile := ini.Empty()
+	err := iniFile.ReflectFrom(config)
+	if err != nil {
+		log.WithError(err).Error("Failed to reflect config struct to INI file")
+		return "", err
+	}
+
+	// Write INI file to a string
+	var buffer bytes.Buffer
+	_, err = iniFile.WriteTo(&buffer)
+	if err != nil {
+		log.WithError(err).Error("Failed to write INI file to buffer")
+		return "", err
+	}
+
+	configData := buffer.String()
+
+	log.WithFields(map[string]interface{}{
+		"routerID": routerID,
+		"config":   configData,
+	}).Debug("i2pd router configuration generated successfully")
+
+	return configData, nil
+}
+
+func CopyConfigToVolume(cli *client.Client, ctx context.Context, volumeName string, configData string) error {
+	// Create a temporary container to copy data into the volume
+	log.WithField("volumeName", volumeName).Debug("Starting config copy to volume")
+
+	tempContainerConfig := &container.Config{
+		Image:      "alpine",
+		Tty:        false,
+		WorkingDir: "/var/lib/i2pd",
+		Cmd:        []string{"sh", "-c", "mkdir -p /var/lib/i2pd && sleep 1d"},
+	}
+
+	hostConfig := &container.HostConfig{
+		Binds: []string{
+			fmt.Sprintf("%s:/var/lib/i2pd", volumeName),
+		},
+	}
+
+	log.WithFields(map[string]interface{}{
+		"image":      tempContainerConfig.Image,
+		"volumeName": volumeName,
+	}).Debug("Creating temporary container")
+
+	resp, err := cli.ContainerCreate(ctx, tempContainerConfig, hostConfig, nil, nil, "")
+	if err != nil {
+		log.WithError(err).Error("Failed to create temporary container")
+		return fmt.Errorf("error creating temporary container: %v", err)
+	}
+	defer func() {
+		log.WithField("containerID", resp.ID).Debug("Removing temporary container")
+		removeOptions := container.RemoveOptions{Force: true}
+		err := cli.ContainerRemove(ctx, resp.ID, removeOptions)
+		if err != nil {
+			log.WithError(err).Error("Failed to remove temporary container")
+		}
+	}()
+
+	// Start the container
+	log.WithField("containerID", resp.ID).Debug("Starting temporary container")
+	startOptions := container.StartOptions{}
+	if err := cli.ContainerStart(ctx, resp.ID, startOptions); err != nil {
+		log.WithError(err).Error("Failed to start temporary container")
+		return fmt.Errorf("error starting temporary container: %v", err)
+	}
+
+	// Copy the configuration file into the container
+	log.Debug("Creating tar archive of config data")
+	tarReader, err := utils.CreateTarArchive("i2pd.conf", configData)
+	if err != nil {
+		log.WithError(err).Error("Failed to create tar archive")
+		return fmt.Errorf("error creating tar archive: %v", err)
+	}
+
+	// Copy to the container's volume-mounted directory
+	log.WithField("containerID", resp.ID).Debug("Copying config to container")
+	err = cli.CopyToContainer(ctx, resp.ID, "/var/lib/i2pd", tarReader, container.CopyToContainerOptions{})
+	if err != nil {
+		log.WithError(err).Error("Failed to copy config to container")
+		return fmt.Errorf("error copying to container: %v", err)
+	}
+
+	// Stop the container
+	log.WithField("containerID", resp.ID).Debug("Stopping temporary container")
+	stopOptions := container.StopOptions{}
+	if err := cli.ContainerStop(ctx, resp.ID, stopOptions); err != nil {
+		log.WithError(err).Error("Failed to stop temporary container")
+		return fmt.Errorf("error stopping temporary container: %v", err)
+	}
+
+	log.Debug("Successfully copied config to volume")
+	return nil
 }
