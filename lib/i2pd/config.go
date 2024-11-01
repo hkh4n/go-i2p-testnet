@@ -208,7 +208,7 @@ type CPUExtConfig struct {
 	Force bool `ini:"force"`
 }
 
-func GenerateDefaultI2PDConfig() *I2PDConfig {
+func GenerateDefaultI2PDConfig() *I2PDConfig { //IMPORTANT NOTE: this is literally the default conf from i2pd; so it includes data that would assume clearnet connection that cannot be done in a testnet unless configured to do so in the future
 	return &I2PDConfig{
 		// Global options (before any section)
 		TunnelsConf: "",
