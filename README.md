@@ -9,13 +9,14 @@ This is in active development and not in working order yet.
  - [/] Readline interface
  - [ ] Reseed via file
  - [ ] Reseed via node
+ - [ ] go-i2p nodes
+ - [ ] i2pd nodes
+ - [ ] i2p java router nodes
  - Config
    - [X] go-i2p node
    - [ ] i2pd node
    - [ ] i2p java router node
- - [ ] i2pd nodes
- - [ ] i2p java router nodes
- - 
+
 ## Verbosity ##
 Logging can be enabled and configured using the DEBUG_I2P environment variable. By default, logging is disabled.
 
@@ -34,4 +35,4 @@ export DEBUG_TESTNET=warn
 export DEBUG_TESTNET=error
 ```
 
-If I2P_TESTNET is set to an unrecognized variable, it will fall back to "debug". Note, that this only accounts for verbosity in the testnet program itself, and not the nodes.
+If DEBUG_TESTNET is set to an unrecognized variable, it will fall back to "debug". Note, that this only accounts for verbosity in the testnet program itself, and not the nodes.
