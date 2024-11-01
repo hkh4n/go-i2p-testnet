@@ -32,70 +32,97 @@ const (
 
 // cleanup removes all created Docker resources: containers, volumes, and network.
 func cleanup(cli *client.Client, ctx context.Context, createdContainers []string, createdVolumes []string, networkName string) {
-	log.Infof("\nCleaning up Docker resources...")
+	log.WithField("networkName", networkName).Debug("Starting cleanup of Docker resources")
 
 	// Remove containers
 	for _, containerID := range createdContainers {
+		log.WithField("containerID", containerID).Debug("Attempting to stop container")
 		// Attempt to stop the container
 		timeout := 10 // seconds
 		err := cli.ContainerStop(ctx, containerID, container.StopOptions{Timeout: &timeout})
 		if err != nil {
-			log.Printf("Warning: Failed to stop container %s: %v", containerID, err)
+			log.WithFields(map[string]interface{}{
+				"containerID": containerID,
+				"error":       err,
+			}).Error("Failed to stop container")
 		}
 
 		// Attempt to remove the container
+		log.WithField("containerID", containerID).Debug("Attempting to remove container")
 		removeOptions := container.RemoveOptions{Force: true}
 		err = cli.ContainerRemove(ctx, containerID, removeOptions)
 		if err != nil {
-			log.Printf("Warning: Failed to remove container %s: %v", containerID, err)
+			log.WithFields(map[string]interface{}{
+				"containerID": containerID,
+				"error":       err,
+			}).Error("Failed to remove container")
 		} else {
-			fmt.Printf("Removed container %s\n", containerID)
+			log.WithField("containerID", containerID).Debug("Successfully removed container")
 		}
 	}
 
 	// Remove volumes
 	for _, volumeName := range createdVolumes {
+		log.WithField("volumeName", volumeName).Debug("Attempting to remove volume")
 		err := cli.VolumeRemove(ctx, volumeName, true)
 		if err != nil {
-			log.Printf("Warning: Failed to remove volume %s: %v", volumeName, err)
+			log.WithFields(map[string]interface{}{
+				"volumeName": volumeName,
+				"error":      err,
+			}).Error("Failed to remove volume")
 		} else {
-			fmt.Printf("Removed volume %s\n", volumeName)
+			log.WithField("volumeName", volumeName).Debug("Successfully removed volume")
 		}
 	}
 
 	// Remove network
+	log.WithField("networkName", networkName).Debug("Attempting to remove network")
 	err := cli.NetworkRemove(ctx, networkName)
 	if err != nil {
-		log.Printf("Warning: Failed to remove network %s: %v", networkName, err)
+		log.WithFields(map[string]interface{}{
+			"networkName": networkName,
+			"error":       err,
+		}).Error("Failed to remove network")
 	} else {
-		fmt.Printf("Removed network %s\n", networkName)
+		log.WithField("networkName", networkName).Debug("Successfully removed network")
 	}
 }
 
 func addCreated(containerID, volumeID string) {
 	mu.Lock()
 	defer mu.Unlock()
+	log.WithFields(map[string]interface{}{
+		"containerID": containerID,
+		"volumeID":    volumeID,
+	}).Debug("Tracking new container and volume")
 	createdContainers = append(createdContainers, containerID)
 	createdVolumes = append(createdVolumes, volumeID)
 }
 
 func start(cli *client.Client, ctx context.Context) {
+	log.Debug("Starting testnet initialization")
 	// Create Docker network
 	networkName := NETWORK
+	log.WithField("networkName", networkName).Debug("Creating Docker network")
 	networkID, err := docker_control.CreateDockerNetwork(cli, ctx, networkName)
 	if err != nil {
-		log.Fatalf("Error creating Docker network: %v", err)
+		log.WithError(err).Fatal("Failed to create Docker network")
+		//log.Fatalf("Error creating Docker network: %v", err)
 	}
-	fmt.Printf("Created network %s with ID %s\n", networkName, networkID)
+	log.WithFields(map[string]interface{}{
+		"networkName": networkName,
+		"networkID":   networkID,
+	}).Debug("Successfully created network")
 
 	//Create shared volume
+	log.Debug("Creating shared volume")
 	sharedVolumeName, err := docker_control.CreateSharedVolume(cli, ctx)
 	if err != nil {
 		log.Fatalf("error creating shared volume: %v", err)
 	}
 	createdVolumes = append(createdVolumes, sharedVolumeName)
 	running = true
-	fmt.Println("Network and shared volume created.")
+	log.WithField("volumeName", sharedVolumeName).Debug("Successfully created shared volume")
 	/*
 		// Number of routers to create
 		numRouters := 3
@@ -142,30 +169,46 @@ func addGOI2PRouter(cli *client.Client, ctx context.Context) error {
 	mu.Lock()
 	routerID := len(createdGOI2Prouters) + 1
 
+	log.WithField("routerID", routerID).Debug("Adding new GO-I2P router")
+
 	// Calculate next IP
 	incr := routerID + 1
 	if incr == 256 {
-		return fmt.Errorf("maximum capacity reached (255)")
+		log.Error("Maximum number of nodes reached (255)")
+		mu.Unlock()
+		return fmt.Errorf("too many nodes! (255)")
 	}
 	nextIP := fmt.Sprintf("172.28.0.%d", incr)
 	mu.Unlock()
 
+	log.WithFields(map[string]interface{}{
+		"routerID": routerID,
+		"ip":       nextIP,
+	}).Debug("Generating router configuration")
+
 	configData := goi2p.GenerateRouterConfig(routerID)
 
 	// Create the container
+	log.Debug("Creating router container")
 	containerID, volumeID, err := goi2p.CreateRouterContainer(cli, ctx, routerID, nextIP, NETWORK, configData)
 	if err != nil {
+		log.WithError(err).Error("Failed to create router container")
 		return err
 	}
 
 	mu.Lock()
+	log.WithFields(map[string]interface{}{
+		"routerID":    routerID,
+		"containerID": containerID,
+		"volumeID":    volumeID,
+		"ip":          nextIP,
+	}).Debug("Adding router to tracking lists")
 	createdGOI2Prouters = append(createdGOI2Prouters, containerID)
 	createdContainers = append(createdContainers, containerID)
 	createdVolumes = append(createdVolumes, volumeID)
 
 	addCreated(containerID, volumeID)
-
-	fmt.Printf("Added router%d with IP %s\n", routerID, nextIP)
+	mu.Unlock()
 
 	return nil
 }
@@ -174,14 +217,16 @@ func main() {
 	ctx := context.Background()
 
 	// Initialize Docker client
+	log.Debug("Initializing Docker client")
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		log.Fatalf("Error creating Docker client: %v", err)
+		log.WithError(err).Fatal("Failed to create Docker client")
 	}
 
 	// Ensure cleanup is performed on exit
 	defer func() {
 		if running {
+			log.Debug("Performing cleanup on exit")
 			cleanup(cli, ctx, createdContainers, createdVolumes, NETWORK)
 		}
 	}()
@@ -192,11 +237,13 @@ func main() {
 
 	//Begin command loop
 	// Setup readline for command line input
+	log.Debug("Initializing readline interface")
 	rl, err := readline.New("> ")
 	if err != nil {
-		log.Fatalf("Error initializing readline: %v", err)
+		log.WithError(err).Fatal("Failed to initialize readline")
 	}
 	defer rl.Close()
+	log.Debug("Starting command loop")
 	for {
 		line, err := rl.Readline()
 		if err != nil { //EOF
@@ -207,6 +254,8 @@ func main() {
 		if len(parts) == 0 {
 			continue
 		}
+
+		log.WithField("command", parts[0]).Debug("Processing command")
 
 		// handle commands
 		switch parts[0] {
@@ -290,32 +339,40 @@ func showHelp() {
 }
 
 func buildImages(cli *client.Client, ctx context.Context) error {
+	log.Debug("Building GO-I2P node image")
 	err := goi2p.BuildImage(cli, ctx)
 	if err != nil {
+		log.WithError(err).Error("Failed to build GO-I2P node image")
 		return err
 	}
-	fmt.Println("go-i2p-node built successfully")
+	log.Debug("Successfully built GO-I2P node image")
 	return nil
 }
 
 func removeImages(cli *client.Client, ctx context.Context) error {
+	log.Debug("Removing GO-I2P node image")
 	err := goi2p.RemoveImage(cli, ctx)
 	if err != nil {
+		log.WithError(err).Error("Failed to remove GO-I2P node image")
 		return err
 	}
-	fmt.Println("go-i2p-node removed successfully")
+	log.Debug("Successfully removed GO-I2P node image")
 	return nil
 }
 
 func rebuildImages(cli *client.Client, ctx context.Context) error {
+	log.Debug("Starting image rebuild process")
 	err := removeImages(cli, ctx)
 	if err != nil {
+		log.WithError(err).Error("Failed during image removal step of rebuild")
 		return err
 	}
 	err = buildImages(cli, ctx)
 	if err != nil {
+		log.WithError(err).Error("Failed during image build step of rebuild")
 		return err
 	}
 
+	log.Debug("Successfully completed image rebuild")
 	return nil
 }
