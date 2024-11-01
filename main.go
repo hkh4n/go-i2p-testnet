@@ -8,6 +8,7 @@ import (
 	"github.com/docker/docker/client"
 	"go-i2p-testnet/lib/docker_control"
 	goi2p "go-i2p-testnet/lib/go-i2p"
+	"go-i2p-testnet/lib/i2pd"
 	"go-i2p-testnet/lib/utils/logger"
 	"os"
 	"os/signal"
@@ -19,11 +20,11 @@ import (
 var (
 	running = false
 	// Track created containers and volumes for cleanup
-	createdGOI2Prouters []string
-	createdContainers   []string
-	createdVolumes      []string
-	mu                  sync.Mutex // To protect access to the slices
-	log                 = logger.GetTestnetLogger()
+	createdRouters    []string
+	createdContainers []string
+	createdVolumes    []string
+	mu                sync.Mutex // To protect access to the slices
+	log               = logger.GetTestnetLogger()
 )
 
 const (
@@ -169,9 +170,9 @@ func start(cli *client.Client, ctx context.Context) {
 func addGOI2PRouter(cli *client.Client, ctx context.Context) error {
 	mu.Lock()
 	defer mu.Unlock()
-	routerID := len(createdGOI2Prouters) + 1
+	routerID := len(createdRouters) + 1
 
-	log.WithField("routerID", routerID).Debug("Adding new GO-I2P router")
+	log.WithField("routerID", routerID).Debug("Adding new go-i2p router")
 
 	// Calculate next IP
 	incr := routerID + 1
@@ -202,12 +203,36 @@ func addGOI2PRouter(cli *client.Client, ctx context.Context) error {
 		"volumeID":    volumeID,
 		"ip":          nextIP,
 	}).Debug("Adding router to tracking lists")
-	createdGOI2Prouters = append(createdGOI2Prouters, containerID)
+	createdRouters = append(createdRouters, containerID)
 	createdContainers = append(createdContainers, containerID)
 	createdVolumes = append(createdVolumes, volumeID)
 
 	addCreated(containerID, volumeID)
 	return nil
+}
+
+func addI2pdRouter(cli *client.Client, ctx context.Context) error {
+	mu.Lock()
+	defer mu.Unlock()
+	routerID := len(createdRouters) + 1
+
+	log.WithField("routerID", routerID).Debug("Adding new i2pd router")
+
+	//Calculate next IP
+	incr := routerID + 1
+	if incr == 256 {
+		log.Error("Maximum number of nodes reached (255)")
+		return fmt.Errorf("too many nodes! (255)")
+	}
+	nextIP := fmt.Sprintf("172.28.0.%d", incr)
+
+	log.WithFields(map[string]interface{}{
+		"routerID": routerID,
+		"ip":       nextIP,
+	}).Debug("Generating router configuration")
+	panic("unimplimented")
+	//configData := i2pd.
+
 }
 
 func main() {
@@ -336,24 +361,42 @@ func showHelp() {
 }
 
 func buildImages(cli *client.Client, ctx context.Context) error {
-	log.Debug("Building GO-I2P node image")
+	log.Debug("Building go-i2p node image")
 	err := goi2p.BuildImage(cli, ctx)
 	if err != nil {
-		log.WithError(err).Error("Failed to build GO-I2P node image")
+		log.WithError(err).Error("Failed to build go-i2p node image")
 		return err
 	}
-	log.Debug("Successfully built GO-I2P node image")
+	log.Debug("Successfully built go-i2p node image")
+
+	log.Debug("Building i2pd node image")
+	err = i2pd.BuildImage(cli, ctx)
+	if err != nil {
+		log.WithError(err).Error("Failed to build i2pd node image")
+		return err
+	}
+	log.Debug("Successfully built i2pd node image")
+
 	return nil
 }
 
 func removeImages(cli *client.Client, ctx context.Context) error {
-	log.Debug("Removing GO-I2P node image")
+	log.Debug("Removing go-i2p node image")
 	err := goi2p.RemoveImage(cli, ctx)
 	if err != nil {
-		log.WithError(err).Error("Failed to remove GO-I2P node image")
+		log.WithError(err).Error("Failed to remove go-i2p node image")
 		return err
 	}
-	log.Debug("Successfully removed GO-I2P node image")
+	log.Debug("Successfully removed go-i2p node image")
+
+	log.Debug("Removing i2pd node image")
+	err = i2pd.RemoveImage(cli, ctx)
+	if err != nil {
+		log.WithError(err).Error("Failed to remove i2pd node image")
+		return err
+	}
+	log.Debug("Successfully removed i2pd node image")
+
 	return nil
 }
 
