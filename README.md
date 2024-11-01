@@ -18,7 +18,7 @@ This is in active development and not in working order yet.
    - [ ] i2p java router node
 
 ## Verbosity ##
-Logging can be enabled and configured using the DEBUG_I2P environment variable. By default, logging is disabled.
+Logging can be enabled and configured using the DEBUG_TESTNET environment variable. By default, logging is disabled.
 
 There are three available log levels:
 
