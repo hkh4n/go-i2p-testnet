@@ -8,7 +8,7 @@ import (
 	"github.com/docker/docker/client"
 	"go-i2p-testnet/lib/docker_control"
 	goi2p "go-i2p-testnet/lib/go-i2p"
-	"log"
+	"go-i2p-testnet/lib/utils/logger"
 	"os"
 	"os/signal"
 	"strings"
@@ -23,6 +23,7 @@ var (
 	createdContainers   []string
 	createdVolumes      []string
 	mu                  sync.Mutex // To protect access to the slices
+	log                 = logger.GetTestnetLogger()
 )
 
 const (
@@ -31,7 +32,7 @@ const (
 
 // cleanup removes all created Docker resources: containers, volumes, and network.
 func cleanup(cli *client.Client, ctx context.Context, createdContainers []string, createdVolumes []string, networkName string) {
-	fmt.Println("\nCleaning up Docker resources...")
+	log.Infof("\nCleaning up Docker resources...")
 
 	// Remove containers
 	for _, containerID := range createdContainers {
@@ -224,6 +225,15 @@ func main() {
 			} else {
 				fmt.Println("Testnet isn't running")
 			}
+		case "build":
+			if running {
+				fmt.Println("Testnet is running, not safe to build")
+			} else {
+				err := buildImages(cli, ctx)
+				if err != nil {
+					fmt.Printf("failed to build images: %v\n", err)
+				}
+			}
 		case "rebuild":
 			if running {
 				fmt.Println("Testnet is running, not safe to rebuild")
@@ -272,6 +282,7 @@ func showHelp() {
 	fmt.Println("  help					- Show this help message")
 	fmt.Println("  start					- Start routers")
 	fmt.Println("  stop					- Stop and cleanup routers")
+	fmt.Println("  build					- Build docker images for nodes")
 	fmt.Println("  rebuild				- Rebuild docker images for nodes")
 	fmt.Println("  remove_images			- Removes all node images")
 	fmt.Println("  add_goi2p_router		- Add a router node (go-i2p)")
