@@ -318,7 +318,7 @@ func main() {
 	}
 	defer rl.Close()
 	log.Debug("Starting command loop")
-	fmt.Println("Logging is available, check README.md for details (set env DEBUG_TESTNET to debug, warn or error)")
+	fmt.Println("Logging is available, check README.md for details. Set env DEBUG_TESTNET to debug, warn or error")
 	for {
 		line, err := rl.Readline()
 		if err != nil { //EOF
@@ -413,8 +413,8 @@ func main() {
 func showHelp() {
 	fmt.Println("Available commands:")
 	fmt.Println("  help						- Show this help message")
-	fmt.Println("  start						- Start routers")
-	fmt.Println("  stop						- Stop and cleanup routers")
+	fmt.Println("  start						- Start the testnet")
+	fmt.Println("  stop						- Stop testnet and cleanup routers")
 	fmt.Println("  build						- Build docker images for nodes")
 	fmt.Println("  rebuild					- Rebuild docker images for nodes")
 	fmt.Println("  remove_images					- Removes all node images")
