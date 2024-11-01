@@ -318,6 +318,7 @@ func main() {
 	}
 	defer rl.Close()
 	log.Debug("Starting command loop")
+	fmt.Println("Logging is available, check README.md for details (set env DEBUG_TESTNET to debug, warn or error)")
 	for {
 		line, err := rl.Readline()
 		if err != nil { //EOF
