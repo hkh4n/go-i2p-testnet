@@ -11,12 +11,12 @@ This is in active development and not in working order yet. It is highly unstabl
  - [ ] Reseed via file
  - [ ] Reseed via node (i2pd)
  - [ ] Reseed via node (i2p java)
- - [/] go-i2p nodes
- - [ ] i2pd nodes
- - [ ] i2p java router nodes
+ - [X] go-i2p node (basic startup)
+ - [X] i2pd node (basic startup)
+ - [ ] i2p java router node (basic startup)
  - Config
    - [X] go-i2p node
-   - [ ] i2pd node
+   - [X] i2pd node
    - [ ] i2p java router node
 
 ## Verbosity ##
