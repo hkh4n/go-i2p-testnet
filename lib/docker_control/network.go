@@ -2,20 +2,25 @@ package docker_control
 
 import (
 	"context"
-	"fmt"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 )
 
 func CreateDockerNetwork(cli *client.Client, ctx context.Context, networkName string) (string, error) {
+	log.WithField("networkName", networkName).Debug("Starting Docker network creation")
 	// Check if the network already exists
+	log.Debug("Checking for existing networks")
 	networks, err := cli.NetworkList(ctx, network.ListOptions{})
 	if err != nil {
+		log.WithError(err).Error("Failed to list Docker networks")
 		return "", err
 	}
 	for _, net := range networks {
 		if net.Name == networkName {
-			fmt.Printf("Network %s already exists. Using existing network.\n", networkName)
+			log.WithFields(map[string]interface{}{
+				"networkName": networkName,
+				"networkID":   net.ID,
+			}).Debug("Network already exists, using existing network")
 			return net.ID, nil
 		}
 	}
@@ -31,10 +36,21 @@ func CreateDockerNetwork(cli *client.Client, ctx context.Context, networkName st
 			},
 		},
 	}
+
+	log.WithFields(map[string]interface{}{
+		"networkName": networkName,
+		"driver":      createOptions.Driver,
+		"subnet":      createOptions.IPAM.Config[0].Subnet,
+	}).Debug("Creating new Docker network")
+
 	resp, err := cli.NetworkCreate(ctx, networkName, createOptions)
 	if err != nil {
+		log.WithError(err).Error("Failed to create Docker network")
 		return "", err
 	}
-	fmt.Printf("Created network %s with ID %s\n", networkName, resp.ID)
+	log.WithFields(map[string]interface{}{
+		"networkName": networkName,
+		"networkID":   resp.ID,
+	}).Debug("Successfully created Docker network")
 	return resp.ID, nil
 }
