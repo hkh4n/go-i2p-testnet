@@ -3,13 +3,15 @@
 This is in active development and not in working order yet.
 
 ## TO DO
- - [ ] Lifecycle startup + shutdown
- - [/] Volume for each router
+ - [X] Lifecycle startup + shutdown
+ - [X] Volume for each router
+ - [X] Shared Volume
  - [ ] Port forwarding
- - [/] Readline interface
+ - [X] Readline interface
  - [ ] Reseed via file
- - [ ] Reseed via node
- - [ ] go-i2p nodes
+ - [ ] Reseed via node (i2pd)
+ - [ ] Reseed via node (i2p java)
+ - [/] go-i2p nodes
  - [ ] i2pd nodes
  - [ ] i2p java router nodes
  - Config
