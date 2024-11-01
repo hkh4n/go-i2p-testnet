@@ -197,3 +197,185 @@ type CPUExtConfig struct {
 	AVX   bool `ini:"avx"`
 	Force bool `ini:"force"`
 }
+
+func Default() *I2PDConfig {
+	return &I2PDConfig{
+		// Global options (before any section)
+		TunnelsConf: "",
+		TunnelsDir:  "",
+		CertsDir:    "",
+		Pidfile:     "",
+		Log:         "stdout",
+		Logfile:     "",
+		Loglevel:    "warn",
+		Logclftime:  false,
+		Daemon:      false,
+		Family:      "",
+		Ifname:      "",
+		Ifname4:     "",
+		Ifname6:     "",
+		Address4:    "",
+		Address6:    "",
+		Host:        "",
+		Port:        0, // Default is a random port
+		IPv4:        true,
+		IPv6:        true,
+		SSU:         true,
+		Bandwidth:   "L",
+		Share:       100,
+		Notransit:   false,
+		Floodfill:   false,
+
+		// NTCP2 section
+		NTCP2: NTCP2Config{
+			Enabled:   true,
+			Published: true,
+			Port:      0, // Uses global port option
+		},
+
+		// SSU2 section
+		SSU2: SSU2Config{
+			Enabled:   true,
+			Published: true,
+			Port:      0, // Uses global port option or port + 1 if SSU is enabled
+		},
+
+		// HTTP section
+		HTTP: HTTPConfig{
+			Enabled: true,
+			Address: "127.0.0.1",
+			Port:    7070,
+			Webroot: "/",
+			Auth:    false,
+			User:    "",
+			Pass:    "",
+			Lang:    "english",
+		},
+
+		// HTTP Proxy section
+		HTTPProxy: HTTPProxyConfig{
+			Enabled:       true,
+			Address:       "127.0.0.1",
+			Port:          4444,
+			Keys:          "",
+			AddressHelper: true,
+			Outproxy:      "",
+		},
+
+		// SOCKS Proxy section
+		SocksProxy: SocksProxyConfig{
+			Enabled:         true,
+			Address:         "127.0.0.1",
+			Port:            4447,
+			Keys:            "",
+			OutproxyEnabled: false,
+			Outproxy:        "",
+			OutproxyPort:    0,
+		},
+
+		// SAM section
+		SAM: SAMConfig{
+			Enabled: true,
+			Address: "127.0.0.1",
+			Port:    7656,
+		},
+
+		// BOB section
+		BOB: BOBConfig{
+			Enabled: false,
+			Address: "127.0.0.1",
+			Port:    2827,
+		},
+
+		// I2CP section
+		I2CP: I2CPConfig{
+			Enabled: false,
+			Address: "127.0.0.1",
+			Port:    7654,
+		},
+
+		// I2PControl section
+		I2PControl: I2PControlConfig{
+			Enabled:  false,
+			Address:  "127.0.0.1",
+			Port:     7650,
+			Password: "itoopie",
+		},
+
+		// Precomputation section
+		Precomputation: PrecomputationConfig{
+			ElGamal: true, // Enabled by default
+		},
+
+		// UPnP section
+		UPnP: UPnPConfig{
+			Enabled: false, // Disabled by default on non-Windows/Android platforms
+			Name:    "I2Pd",
+		},
+
+		// Meshnets section
+		Meshnets: MeshnetsConfig{
+			Yggdrasil:  false,
+			YggAddress: "",
+		},
+
+		// Reseed section
+		Reseed: ReseedConfig{
+			Verify: true,
+			URLs: "https://reseed.i2p-projekt.de/," +
+				"https://i2p.mooo.com/netDb/," +
+				"https://netdb.i2p2.no/",
+			YggURLs:   "",
+			File:      "",
+			ZipFile:   "",
+			Proxy:     "",
+			Threshold: 25,
+		},
+
+		// Addressbook section
+		Addressbook: AddressbookConfig{
+			DefaultURL:    "http://reg.i2p/hosts.txt",
+			Subscriptions: "",
+		},
+
+		// Limits section
+		Limits: LimitsConfig{
+			TransitTunnels: 5000,
+			OpenFiles:      0,
+			CoreSize:       0,
+		},
+
+		// Trust section
+		Trust: TrustConfig{
+			Enabled: false,
+			Family:  "",
+			Routers: "",
+			Hidden:  false,
+		},
+
+		// Exploratory section
+		Exploratory: ExploratoryConfig{
+			Inbound: TunnelConfig{
+				Length:   2,
+				Quantity: 3,
+			},
+			Outbound: TunnelConfig{
+				Length:   2,
+				Quantity: 3,
+			},
+		},
+
+		// Persist section
+		Persist: PersistConfig{
+			Profiles:    true,
+			Addressbook: true,
+		},
+
+		// CPU Extensions section
+		CPUExt: CPUExtConfig{
+			AESNI: true,
+			AVX:   true,
+			Force: false,
+		},
+	}
+}
