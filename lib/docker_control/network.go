@@ -28,7 +28,7 @@ func CreateDockerNetwork(cli *client.Client, ctx context.Context, networkName st
 	// Create the network
 	createOptions := network.CreateOptions{
 		Driver:   "bridge",
-		Internal: true, // Isolates from clearnet?
+		Internal: true, // Isolates from clearnet
 		IPAM: &network.IPAM{
 			Config: []network.IPAMConfig{
 				{

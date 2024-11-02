@@ -145,13 +145,13 @@ func status(cli *client.Client, ctx context.Context) {
 	// Filter containers whose names start with "router"
 	fmt.Println("Current router containers:")
 	found := false
-	for _, container := range containers {
-		for _, name := range container.Names {
-			// Docker prepends "/" to container names
+	for _, _container := range containers {
+		for _, name := range _container.Names {
+			// Docker prepends "/" to _container names
 			if strings.HasPrefix(name, "/router") {
 				found = true
 				fmt.Printf("Container ID: %s, Name: %s, Image: %s, Status: %s\n",
-					container.ID[:12], name[1:], container.Image, container.Status)
+					_container.ID[:12], name[1:], _container.Image, _container.Status)
 			}
 		}
 	}
