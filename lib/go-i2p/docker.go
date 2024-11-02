@@ -7,7 +7,7 @@ import (
 	"go-i2p-testnet/lib/docker_control"
 )
 
-var GOI2P_IMAGE = "go-i2p-node"
+const GOI2P_IMAGE = "go-i2p-node"
 
 func BuildImage(cli *client.Client, ctx context.Context) error {
 	dockerfilePath := "../docker/go-i2p-node.dockerfile"

@@ -77,14 +77,13 @@ func initializeRouterConfig(routerID int) *config.RouterConfig {
 }
 
 func CopyConfigToVolume(cli *client.Client, ctx context.Context, volumeName string, configData string) error {
-	// Create a temporary container to copy data into the volume
 	log.WithField("volumeName", volumeName).Debug("Starting config copy to volume")
 
 	tempContainerConfig := &container.Config{
 		Image:      "alpine",
 		Tty:        false,
 		WorkingDir: "/config",
-		Cmd:        []string{"sh", "-c", "mkdir -p /config/.go-i2p && sleep 1d"},
+		Cmd:        []string{"sh", "-c", "sleep 1d"},
 	}
 
 	hostConfig := &container.HostConfig{
@@ -112,7 +111,6 @@ func CopyConfigToVolume(cli *client.Client, ctx context.Context, volumeName stri
 		}
 	}()
 
-	// Start the container
 	log.WithField("containerID", resp.ID).Debug("Starting temporary container")
 	StartOptions := container.StartOptions{}
 	if err := cli.ContainerStart(ctx, resp.ID, StartOptions); err != nil {
@@ -120,15 +118,13 @@ func CopyConfigToVolume(cli *client.Client, ctx context.Context, volumeName stri
 		return fmt.Errorf("error starting temporary container: %v", err)
 	}
 
-	// Copy the configuration file into the container
 	log.Debug("Creating tar archive of config data")
-	tarReader, err := utils.CreateTarArchive(".go-i2p/config.yaml", configData)
+	tarReader, err := utils.CreateTarArchive(".go-i2p/config.yaml", configData) // Now... is this created before or after?
 	if err != nil {
 		log.WithError(err).Error("Failed to create tar archive")
 		return fmt.Errorf("error creating tar archive: %v", err)
 	}
 
-	// Copy to the container's volume-mounted directory
 	log.WithField("containerID", resp.ID).Debug("Copying config to container")
 	err = cli.CopyToContainer(ctx, resp.ID, "/config", tarReader, container.CopyToContainerOptions{})
 	if err != nil {
@@ -136,7 +132,6 @@ func CopyConfigToVolume(cli *client.Client, ctx context.Context, volumeName stri
 		return fmt.Errorf("error copying to container: %v", err)
 	}
 
-	// Stop the container
 	log.WithField("containerID", resp.ID).Debug("Stopping temporary container")
 	StopOptions := container.StopOptions{}
 	if err := cli.ContainerStop(ctx, resp.ID, StopOptions); err != nil {
@@ -147,7 +142,6 @@ func CopyConfigToVolume(cli *client.Client, ctx context.Context, volumeName stri
 	log.Debug("Successfully copied config to volume")
 	return nil
 }
-
 func GenerateRouterConfig(routerID int) string {
 	log.WithField("routerID", routerID).Debug("Starting router config generation")
 	// Initialize router-specific configuration

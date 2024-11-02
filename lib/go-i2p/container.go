@@ -62,7 +62,7 @@ func CreateRouterContainer(cli *client.Client, ctx context.Context, routerID int
 	// Host configuration
 	hostConfig := &container.HostConfig{
 		Binds: []string{
-			fmt.Sprintf("%s:/config", volumeName),
+			fmt.Sprintf("%s:/root", volumeName), // Mount at /.go-i2p
 			fmt.Sprintf("%s:/shared", SHARED_VOLUME),
 		},
 	}
