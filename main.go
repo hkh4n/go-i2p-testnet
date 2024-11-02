@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/chzyer/readline"
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
@@ -194,7 +193,7 @@ func usage(cli *client.Client, ctx context.Context) {
 				}
 
 				// Decode stats
-				var v *types.StatsJSON
+				var v *container.StatsResponse
 				decoder := json.NewDecoder(stats.Body)
 				err = decoder.Decode(&v)
 				stats.Body.Close()
@@ -484,8 +483,8 @@ func showHelp() {
 	fmt.Println("  help						- Show this help message")
 	fmt.Println("  start						- Start the testnet")
 	fmt.Println("  stop						- Stop testnet and cleanup routers")
-	fmt.Println("  status 					- Show status")
-	fmt.Println("  usage                      - Show memory and CPU usage of router containers")
+	fmt.Println("  status					- Show status")
+	fmt.Println("  usage                  			    - Show memory and CPU usage of router containers")
 	fmt.Println("  build						- Build docker images for nodes")
 	fmt.Println("  rebuild					- Rebuild docker images for nodes")
 	fmt.Println("  remove_images					- Removes all node images")
