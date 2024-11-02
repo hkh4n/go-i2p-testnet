@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/chzyer/readline"
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
@@ -157,6 +159,74 @@ func status(cli *client.Client, ctx context.Context) {
 	}
 	if !found {
 		fmt.Println("No router containers are running.")
+	}
+}
+func usage(cli *client.Client, ctx context.Context) {
+	log.Debug("Fetching usage statistics for router containers")
+
+	// List all containers
+	containers, err := cli.ContainerList(ctx, container.ListOptions{All: true})
+	if err != nil {
+		log.WithError(err).Error("Failed to list Docker containers")
+		fmt.Println("Error: failed to list Docker containers:", err)
+		return
+	}
+
+	found := false
+	fmt.Println("\nRouter Container Usage Statistics:")
+	fmt.Printf("%-20s %-20s %-20s %-10s\n", "NAME", "MEMORY USAGE (MB)", "MEMORY LIMIT (MB)", "CPU %")
+	fmt.Println(strings.Repeat("-", 75))
+
+	for _, c := range containers {
+		// Filter for router containers
+		for _, name := range c.Names {
+			if strings.HasPrefix(name, "/router") {
+				found = true
+
+				// Get container stats
+				stats, err := cli.ContainerStats(ctx, c.ID, false)
+				if err != nil {
+					log.WithFields(map[string]interface{}{
+						"containerID": c.ID,
+						"error":       err,
+					}).Error("Failed to get container stats")
+					continue
+				}
+
+				// Decode stats
+				var v *types.StatsJSON
+				decoder := json.NewDecoder(stats.Body)
+				err = decoder.Decode(&v)
+				stats.Body.Close()
+
+				if err != nil {
+					log.WithError(err).Error("Failed to decode container stats")
+					continue
+				}
+
+				// Calculate memory usage in MB
+				memUsageMB := float64(v.MemoryStats.Usage) / 1024 / 1024 // Convert to MB
+				memLimitMB := float64(v.MemoryStats.Limit) / 1024 / 1024 // Convert to MB
+
+				// Calculate CPU percentage
+				cpuDelta := float64(v.CPUStats.CPUUsage.TotalUsage) - float64(v.PreCPUStats.CPUUsage.TotalUsage)
+				systemDelta := float64(v.CPUStats.SystemUsage) - float64(v.PreCPUStats.SystemUsage)
+				cpuPercent := 0.0
+				if systemDelta > 0 && cpuDelta > 0 {
+					cpuPercent = (cpuDelta / systemDelta) * float64(len(v.CPUStats.CPUUsage.PercpuUsage)) * 100
+				}
+
+				fmt.Printf("%-20s %-20.2f %-20.2f %-10.2f\n",
+					strings.TrimPrefix(name, "/"),
+					memUsageMB,
+					memLimitMB,
+					cpuPercent)
+			}
+		}
+	}
+
+	if !found {
+		fmt.Println("No router containers found.")
 	}
 }
 func addGOI2PRouter(cli *client.Client, ctx context.Context) error {
@@ -342,6 +412,12 @@ func main() {
 			}
 		case "status":
 			status(cli, ctx)
+		case "usage":
+			if !running {
+				fmt.Println("Testnet isn't running")
+			} else {
+				usage(cli, ctx)
+			}
 		case "build":
 			if running {
 				fmt.Println("Testnet is running, not safe to build")
@@ -408,7 +484,8 @@ func showHelp() {
 	fmt.Println("  help						- Show this help message")
 	fmt.Println("  start						- Start the testnet")
 	fmt.Println("  stop						- Stop testnet and cleanup routers")
-	fmt.Println("  status 						- Show status")
+	fmt.Println("  status 					- Show status")
+	fmt.Println("  usage                      - Show memory and CPU usage of router containers")
 	fmt.Println("  build						- Build docker images for nodes")
 	fmt.Println("  rebuild					- Rebuild docker images for nodes")
 	fmt.Println("  remove_images					- Removes all node images")
