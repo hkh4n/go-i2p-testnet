@@ -1,8 +1,9 @@
 package docker_control
 
 import (
-	"bytes"
+	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/image"
@@ -11,10 +12,58 @@ import (
 	"go-i2p-testnet/lib/utils/logger"
 	"io"
 	"path/filepath"
+	"strings"
 )
 
 var log = logger.GetTestnetLogger()
 
+// DockerMessage represents the structure of Docker build output messages
+type DockerMessage struct {
+	Stream string `json:"stream,omitempty"`
+	Aux    struct {
+		ID string `json:"ID,omitempty"`
+	} `json:"aux,omitempty"`
+	Error string `json:"error,omitempty"`
+}
+
+// streamDockerOutput reads the Docker build output and prints it in a clean format
+func streamDockerOutput(reader io.Reader) error {
+	scanner := bufio.NewScanner(reader)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		var msg DockerMessage
+
+		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			// If it's not JSON, print the line as-is
+			fmt.Println(line)
+			continue
+		}
+
+		// Handle different types of messages
+		switch {
+		case msg.Error != "":
+			log.Errorf("Docker build error: %s", msg.Error)
+		case msg.Aux.ID != "":
+			log.Infof("Image ID: %s", msg.Aux.ID)
+		case msg.Stream != "":
+			// Clean up the stream output
+			stream := strings.TrimSpace(msg.Stream)
+			if stream != "" {
+				// Remove extra newlines and carriage returns
+				stream = strings.ReplaceAll(stream, "\r", "")
+				stream = strings.TrimSpace(stream)
+				fmt.Println(stream)
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading docker output: %v", err)
+	}
+
+	return nil
+}
 func BuildDockerImage(cli *client.Client, ctx context.Context, imageName string, dockerfilePath string) error {
 	log.WithFields(map[string]interface{}{
 		"imageName":  imageName,
@@ -63,14 +112,22 @@ func BuildDockerImage(cli *client.Client, ctx context.Context, imageName string,
 	defer resp.Body.Close()
 
 	// Read and print the build output
-	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, resp.Body)
-	if err != nil {
+	/*
+		buf := new(bytes.Buffer)
+		_, err = io.Copy(buf, resp.Body)
+		if err != nil {
+			log.WithError(err).Error("Failed to read build output")
+			return fmt.Errorf("error reading build output: %v", err)
+		}
+
+	*/
+
+	if err := streamDockerOutput(resp.Body); err != nil {
 		log.WithError(err).Error("Failed to read build output")
 		return fmt.Errorf("error reading build output: %v", err)
 	}
 
-	log.WithField("output", buf.String()).Debug("Docker build completed")
+	log.Debug("Docker build completed")
 	return nil
 }
 
