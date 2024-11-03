@@ -7,9 +7,8 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
+	"go-i2p-testnet/lib/docker_control"
 )
-
-const SHARED_VOLUME = "go-i2p-shared"
 
 // createRouterContainer sets up a router container with its configuration.
 func CreateRouterContainer(cli *client.Client, ctx context.Context, routerID int, ip string, networkName string, configData string) (string, string, error) {
@@ -63,7 +62,7 @@ func CreateRouterContainer(cli *client.Client, ctx context.Context, routerID int
 	hostConfig := &container.HostConfig{
 		Binds: []string{
 			fmt.Sprintf("%s:/root", volumeName), // Mount at /.go-i2p
-			fmt.Sprintf("%s:/shared", SHARED_VOLUME),
+			fmt.Sprintf("%s:/shared", docker_control.SHARED_VOLUME),
 		},
 	}
 

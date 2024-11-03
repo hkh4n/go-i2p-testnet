@@ -1,17 +1,18 @@
 package docker_control
 
 import (
+	"archive/tar"
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/archive"
+	"go-i2p-testnet/lib/dockerfiles"
 	"go-i2p-testnet/lib/utils/logger"
 	"io"
-	"path/filepath"
 	"strings"
 )
 
@@ -64,11 +65,12 @@ func streamDockerOutput(reader io.Reader) error {
 
 	return nil
 }
-func BuildDockerImage(cli *client.Client, ctx context.Context, imageName string, dockerfilePath string) error {
+func BuildDockerImage(cli *client.Client, ctx context.Context, imageName string, dockerfileName string) error {
 	log.WithFields(map[string]interface{}{
-		"imageName":  imageName,
-		"dockerfile": dockerfilePath,
+		"imageName":      imageName,
+		"dockerfileName": dockerfileName,
 	}).Debug("Starting Docker image build")
+
 	// Check if the image already exists
 	exists, err := imageExists(cli, ctx, imageName)
 	if err != nil {
@@ -82,45 +84,58 @@ func BuildDockerImage(cli *client.Client, ctx context.Context, imageName string,
 		return nil
 	}
 
-	// Use the directory of the Dockerfile for creating the tar archive
-	dockerfileDir := filepath.Dir(dockerfilePath)
-	dockerfileName := filepath.Base(dockerfilePath)
-
-	log.WithFields(map[string]interface{}{
-		"dockerfileDir":  dockerfileDir,
-		"dockerfileName": dockerfileName,
-	}).Debug("Creating tar archive of Dockerfile")
-
-	dockerfileTar, err := archive.TarWithOptions(dockerfileDir, &archive.TarOptions{})
+	// Retrieve the Dockerfile content from the embedded files
+	dockerfileContent, err := dockerfiles.GetDockerfileContent(dockerfileName)
 	if err != nil {
-		log.WithError(err).Error("Failed to create tar archive of Dockerfile")
-		return fmt.Errorf("error creating tar archive of Dockerfile: %v", err)
+		log.WithError(err).Errorf("Failed to get embedded Dockerfile: %s", dockerfileName)
+		return fmt.Errorf("error retrieving Dockerfile %s: %v", dockerfileName, err)
 	}
 
+	// Create an in-memory tar archive containing the embedded Dockerfile
+	log.Debug("Creating in-memory tar archive of embedded Dockerfile")
+	tarBuffer := new(bytes.Buffer)
+	tw := tar.NewWriter(tarBuffer)
+
+	// Add the Dockerfile to the tar archive
+	err = tw.WriteHeader(&tar.Header{
+		Name: "Dockerfile",
+		Size: int64(len(dockerfileContent)),
+		Mode: 0600,
+	})
+	if err != nil {
+		tw.Close()
+		log.WithError(err).Error("Failed to write tar header")
+		return fmt.Errorf("error writing tar header: %v", err)
+	}
+
+	_, err = tw.Write(dockerfileContent)
+	if err != nil {
+		tw.Close()
+		log.WithError(err).Error("Failed to write Dockerfile to tar")
+		return fmt.Errorf("error writing Dockerfile to tar: %v", err)
+	}
+
+	// Close the tar writer
+	err = tw.Close()
+	if err != nil {
+		log.WithError(err).Error("Failed to close tar writer")
+		return fmt.Errorf("error closing tar writer: %v", err)
+	}
+
+	// Use the in-memory tar archive as the build context
 	log.Debug("Initiating Docker image build")
 	buildOptions := types.ImageBuildOptions{
 		Tags:       []string{imageName},
-		Dockerfile: dockerfileName, // Set custom Dockerfile name here
+		Dockerfile: "Dockerfile",
 		Remove:     true,
 	}
 
-	resp, err := cli.ImageBuild(ctx, dockerfileTar, buildOptions)
+	resp, err := cli.ImageBuild(ctx, tarBuffer, buildOptions)
 	if err != nil {
 		log.WithError(err).Error("Docker image build failed")
 		return fmt.Errorf("error building Docker image: %v", err)
 	}
 	defer resp.Body.Close()
-
-	// Read and print the build output
-	/*
-		buf := new(bytes.Buffer)
-		_, err = io.Copy(buf, resp.Body)
-		if err != nil {
-			log.WithError(err).Error("Failed to read build output")
-			return fmt.Errorf("error reading build output: %v", err)
-		}
-
-	*/
 
 	if err := streamDockerOutput(resp.Body); err != nil {
 		log.WithError(err).Error("Failed to read build output")

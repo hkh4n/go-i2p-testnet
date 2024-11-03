@@ -7,28 +7,30 @@ import (
 	"github.com/docker/docker/client"
 )
 
-func CreateSharedVolume(cli *client.Client, ctx context.Context) (string, error) {
-	volumeName := "go-i2p-shared"
+const SHARED_VOLUME = "go-i2p-testnet-shared"
 
-	log.WithField("volumeName", volumeName).Debug("Starting Docker volume creation")
+func CreateSharedVolume(cli *client.Client, ctx context.Context) (string, error) {
+	//volumeName := "go-i2p-shared"
+
+	log.WithField("volumeName", SHARED_VOLUME).Debug("Starting Docker volume creation")
 
 	createOptions := volume.CreateOptions{
-		Name: volumeName,
+		Name: SHARED_VOLUME,
 	}
 
 	log.WithFields(map[string]interface{}{
-		"volumeName": volumeName,
+		"volumeName": SHARED_VOLUME,
 		"options":    createOptions,
 	}).Debug("Creating Docker volume")
 
 	_, err := cli.VolumeCreate(ctx, createOptions)
 	if err != nil {
 		log.WithFields(map[string]interface{}{
-			"volumeName": volumeName,
+			"volumeName": SHARED_VOLUME,
 			"error":      err,
 		}).Error("Failed to create Docker volume")
 		return "", fmt.Errorf("error creating shared volume: %v", err)
 	}
-	log.WithField("volumeName", volumeName).Debug("Successfully created Docker volume")
-	return volumeName, nil
+	log.WithField("volumeName", SHARED_VOLUME).Debug("Successfully created Docker volume")
+	return SHARED_VOLUME, nil
 }
