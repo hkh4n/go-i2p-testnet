@@ -540,8 +540,7 @@ func showHelp() {
 	fmt.Println("  build						- Build docker images for nodes")
 	fmt.Println("  rebuild					- Rebuild docker images for nodes")
 	fmt.Println("  remove_images					- Removes all node images")
-	fmt.Println("  add_goi2p_router				- Add a router node (go-i2p)")
-	fmt.Println("  add_i2pd_router				- Add a router node (i2pd)")
+	fmt.Println("  add <nodetype> 				- Available node types are go-i2p and i2pd")
 	fmt.Println("  exit						- Exit the CLI")
 }
 
