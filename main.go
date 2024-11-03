@@ -29,6 +29,20 @@ var (
 	log               = logger.GetTestnetLogger()
 )
 
+var completer = readline.NewPrefixCompleter(
+	readline.PcItem("help"),
+	readline.PcItem("start"),
+	readline.PcItem("stop"),
+	readline.PcItem("status"),
+	readline.PcItem("usage"),
+	readline.PcItem("build"),
+	readline.PcItem("rebuild"),
+	readline.PcItem("remove_images"),
+	readline.PcItem("add_goi2p_router"),
+	readline.PcItem("add_i2pd_router"),
+	readline.PcItem("exit"),
+)
+
 const (
 	NETWORK = "go-i2p-testnet"
 )
@@ -371,7 +385,13 @@ func main() {
 	//Begin command loop
 	// Setup readline for command line input
 	log.Debug("Initializing readline interface")
-	rl, err := readline.New("> ")
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt:          "\033[31mgo-i2p-testnet»\033[0m ",
+		AutoComplete:    completer,
+		HistoryFile:     "/tmp/readline.tmp", // Optional: Enable command history
+		InterruptPrompt: "^C",
+		EOFPrompt:       "exit",
+	})
 	if err != nil {
 		log.WithError(err).Fatal("Failed to initialize readline")
 	}

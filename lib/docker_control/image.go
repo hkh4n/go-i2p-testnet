@@ -27,44 +27,6 @@ type DockerMessage struct {
 	Error string `json:"error,omitempty"`
 }
 
-// streamDockerOutput reads the Docker build output and prints it in a clean format
-func streamDockerOutput(reader io.Reader) error {
-	scanner := bufio.NewScanner(reader)
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		var msg DockerMessage
-
-		if err := json.Unmarshal([]byte(line), &msg); err != nil {
-			// If it's not JSON, print the line as-is
-			fmt.Println(line)
-			continue
-		}
-
-		// Handle different types of messages
-		switch {
-		case msg.Error != "":
-			log.Errorf("Docker build error: %s", msg.Error)
-		case msg.Aux.ID != "":
-			log.Infof("Image ID: %s", msg.Aux.ID)
-		case msg.Stream != "":
-			// Clean up the stream output
-			stream := strings.TrimSpace(msg.Stream)
-			if stream != "" {
-				// Remove extra newlines and carriage returns
-				stream = strings.ReplaceAll(stream, "\r", "")
-				stream = strings.TrimSpace(stream)
-				fmt.Println(stream)
-			}
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading docker output: %v", err)
-	}
-
-	return nil
-}
 func BuildDockerImage(cli *client.Client, ctx context.Context, imageName string, dockerfileName string) error {
 	log.WithFields(map[string]interface{}{
 		"imageName":      imageName,
@@ -198,4 +160,43 @@ func imageExists(cli *client.Client, ctx context.Context, imageName string) (boo
 
 	log.WithField("imageName", imageName).Debug("Docker image not found")
 	return false, nil
+}
+
+// streamDockerOutput reads the Docker build output and prints it in a clean format
+func streamDockerOutput(reader io.Reader) error {
+	scanner := bufio.NewScanner(reader)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		var msg DockerMessage
+
+		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			// If it's not JSON, print the line as-is
+			fmt.Println(line)
+			continue
+		}
+
+		// Handle different types of messages
+		switch {
+		case msg.Error != "":
+			log.Errorf("Docker build error: %s", msg.Error)
+		case msg.Aux.ID != "":
+			log.Infof("Image ID: %s", msg.Aux.ID)
+		case msg.Stream != "":
+			// Clean up the stream output
+			stream := strings.TrimSpace(msg.Stream)
+			if stream != "" {
+				// Remove extra newlines and carriage returns
+				stream = strings.ReplaceAll(stream, "\r", "")
+				stream = strings.TrimSpace(stream)
+				fmt.Println(stream)
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading docker output: %v", err)
+	}
+
+	return nil
 }
