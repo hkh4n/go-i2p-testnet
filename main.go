@@ -38,8 +38,10 @@ var completer = readline.NewPrefixCompleter(
 	readline.PcItem("build"),
 	readline.PcItem("rebuild"),
 	readline.PcItem("remove_images"),
-	readline.PcItem("add_goi2p_router"),
-	readline.PcItem("add_i2pd_router"),
+	readline.PcItem("add",
+		readline.PcItem("goi2p_router"),
+		readline.PcItem("i2pd_router"),
+	),
 	readline.PcItem("exit"),
 )
 
@@ -463,24 +465,55 @@ func main() {
 					fmt.Printf("failed to remove images: %v\n", err)
 				}
 			}
-		case "add_goi2p_router":
-			if !running {
-				fmt.Println("Testnet isn't running")
-			} else {
-				err := addGOI2PRouter(cli, ctx)
-				if err != nil {
-					fmt.Printf("failed to add router: %v\n", err)
-				}
+			/*
+				case "add_goi2p_router":
+					if !running {
+						fmt.Println("Testnet isn't running")
+					} else {
+						err := addGOI2PRouter(cli, ctx)
+						if err != nil {
+							fmt.Printf("failed to add router: %v\n", err)
+						}
+					}
+				case "add_i2pd_router":
+					if !running {
+						fmt.Println("Testnet isn't running")
+					} else {
+						err := addI2PDRouter(cli, ctx)
+						if err != nil {
+							fmt.Printf("failed to add router: %v\n", err)
+						}
+					}
+
+			*/
+		case "add":
+			if len(parts) < 2 {
+				fmt.Println("Specify the type of router to add. Usage: add [goi2p_router|i2pd_router]")
+				return
 			}
-		case "add_i2pd_router":
-			if !running {
-				fmt.Println("Testnet isn't running")
-			} else {
-				err := addI2PDRouter(cli, ctx)
-				if err != nil {
-					fmt.Printf("failed to add router: %v\n", err)
+			switch parts[1] {
+			case "goi2p_router":
+				if !running {
+					fmt.Println("Testnet isn't running")
+				} else {
+					err := addGOI2PRouter(cli, ctx)
+					if err != nil {
+						fmt.Printf("failed to add router: %v\n", err)
+					}
 				}
+			case "i2pd_router":
+				if !running {
+					fmt.Println("Testnet isn't running")
+				} else {
+					err := addI2PDRouter(cli, ctx)
+					if err != nil {
+						fmt.Printf("failed to add router: %v\n", err)
+					}
+				}
+			default:
+				fmt.Println("Unknown router type. Available types: goi2p_router, i2pd_router")
 			}
+
 		case "exit":
 			fmt.Println("Exiting...")
 			if running {
