@@ -111,7 +111,6 @@ func start(cli *client.Client, ctx context.Context) {
 	networkID, err := docker_control.CreateDockerNetwork(cli, ctx, networkName)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to create Docker network")
-		//log.Fatalf("Error creating Docker network: %v", err)
 	}
 	log.WithFields(map[string]interface{}{
 		"networkName": networkName,

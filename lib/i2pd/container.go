@@ -16,7 +16,7 @@ const I2PD_IMAGE = "i2pd-node"
 
 // CreateRouterContainer sets up an i2pd router container.
 func CreateRouterContainer(cli *client.Client, ctx context.Context, routerID int, ip string, networkName string, volumeName string) (string, error) {
-	containerName := fmt.Sprintf("i2pd-router%d", routerID)
+	containerName := fmt.Sprintf("router-i2pd-%d", routerID)
 
 	log.WithFields(map[string]interface{}{
 		"routerID":      routerID,
