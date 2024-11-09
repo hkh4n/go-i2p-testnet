@@ -9,7 +9,7 @@ import (
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 	"go-i2p-testnet/lib/docker_control"
-	goi2p "go-i2p-testnet/lib/go-i2p"
+	goi2pnode "go-i2p-testnet/lib/go-i2p"
 	"go-i2p-testnet/lib/i2pd"
 	"go-i2p-testnet/lib/utils/logger"
 	"os"
@@ -263,11 +263,11 @@ func addGOI2PRouter(cli *client.Client, ctx context.Context) error {
 		"ip":       nextIP,
 	}).Debug("Generating router configuration")
 
-	configData := goi2p.GenerateRouterConfig(routerID)
+	configData := goi2pnode.GenerateRouterConfig(routerID)
 
 	// Create the container
 	log.Debug("Creating router container")
-	containerID, volumeID, err := goi2p.CreateRouterContainer(cli, ctx, routerID, nextIP, NETWORK, configData)
+	containerID, volumeID, err := goi2pnode.CreateRouterContainer(cli, ctx, routerID, nextIP, NETWORK, configData)
 	if err != nil {
 		log.WithError(err).Error("Failed to create router container")
 		return err
@@ -546,7 +546,7 @@ func showHelp() {
 
 func buildImages(cli *client.Client, ctx context.Context) error {
 	log.Debug("Building go-i2p node image")
-	err := goi2p.BuildImage(cli, ctx)
+	err := goi2pnode.BuildImage(cli, ctx)
 	if err != nil {
 		log.WithError(err).Error("Failed to build go-i2p node image")
 		return err
@@ -566,7 +566,7 @@ func buildImages(cli *client.Client, ctx context.Context) error {
 
 func removeImages(cli *client.Client, ctx context.Context) error {
 	log.Debug("Removing go-i2p node image")
-	err := goi2p.RemoveImage(cli, ctx)
+	err := goi2pnode.RemoveImage(cli, ctx)
 	if err != nil {
 		log.WithError(err).Error("Failed to remove go-i2p node image")
 		return err
