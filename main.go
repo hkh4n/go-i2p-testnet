@@ -515,6 +515,59 @@ func main() {
 			default:
 				fmt.Println("Unknown router type. Available types: goi2p_router, i2pd_router")
 			}
+		case "sync_shared":
+			if !running {
+				fmt.Println("Testnet isn't running")
+			} else {
+				log.Debug("Syncing netDb from all router containers to the shared volume")
+
+				// Iterate through all created router containers
+				for _, containerID := range createdContainers {
+					log.WithField("containerID", containerID).Debug("Syncing netDb for container")
+
+					// Sync the netDb directory to the shared volume
+					err := i2pd.SyncNetDbToShared(cli, ctx, containerID)
+					if err != nil {
+						fmt.Printf("Failed to sync netDb from container %s: %v\n", containerID, err)
+					} else {
+						fmt.Printf("Successfully synced netDb from container %s to shared volume\n", containerID)
+					}
+				}
+			}
+		case "sync_i2pd_netdb":
+			if !running {
+				fmt.Println("Testnet isn't running")
+			} else {
+				log.Debug("Syncing netDb from shared volume to all router containers")
+
+				// Sync from shared volume to all router containers
+				for _, containerID := range createdContainers {
+					log.WithField("containerID", containerID).Debug("Syncing netDb from shared volume to container")
+
+					// Sync the shared netDb to the container
+					err := i2pd.SyncSharedToNetDb(cli, ctx, containerID)
+					if err != nil {
+						fmt.Printf("Failed to sync netDb to container %s: %v\n", containerID, err)
+						continue
+					} else {
+						fmt.Printf("Successfully synced netDb to container %s from shared volume\n", containerID)
+					}
+				}
+
+				// Sync each container's RouterInfo back to the shared netDb
+				log.Debug("Syncing RouterInfo from each container to the shared netDb")
+				for _, containerID := range createdContainers {
+					log.WithField("containerID", containerID).Debug("Syncing RouterInfo from container to shared netDb")
+
+					// Sync the RouterInfo from the container to the shared netDb
+					err := i2pd.SyncRouterInfoToNetDb(cli, ctx, containerID, "/shared/netDb")
+					if err != nil {
+						fmt.Printf("Failed to sync RouterInfo from container %s to shared netDb: %v\n", containerID, err)
+					} else {
+						fmt.Printf("Successfully synced RouterInfo from container %s to shared netDb\n", containerID)
+					}
+				}
+			}
 
 		case "exit":
 			fmt.Println("Exiting...")
@@ -525,7 +578,7 @@ func main() {
 		default:
 			fmt.Println("Unknown command. Type 'help' for a list of commands")
 
-		case "hidden": // This is used for debugging and experimental reasons, not meant to be used for the end user but to force actions
+		case "hidden": // This is used for debugging and experimental reasons, not meant to be used for the end user
 			if len(parts) < 2 {
 				fmt.Println("Specify hidden command")
 				continue
