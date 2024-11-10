@@ -15,7 +15,7 @@ import (
 
 func SyncNetDbToShared(cli *client.Client, ctx context.Context, containerID string, volumeName string) error {
 	// Define the source path inside the container
-	sourcePath := "/root/.i2pd/netDb"
+	sourcePath := "/root/.i2pd/netDb/"
 
 	// Create a temporary helper container with the shared volume mounted
 	helperContainerName := "helper-container"

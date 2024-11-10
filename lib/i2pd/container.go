@@ -32,6 +32,7 @@ func CreateRouterContainer(cli *client.Client, ctx context.Context, routerID int
 	hostConfig := &container.HostConfig{
 		Binds: []string{
 			fmt.Sprintf("%s:/var/lib/i2pd", volumeName),
+			//fmt.Sprintf("%s:/root/.i2pd", volumeName),
 			fmt.Sprintf("%s:/shared", docker_control.SHARED_VOLUME), //move SHARED_VOLUME to docker_control
 		},
 	}
