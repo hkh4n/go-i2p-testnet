@@ -27,6 +27,7 @@ var (
 	createdRouters    []string
 	createdContainers []string
 	createdVolumes    []string
+	sharedVolumeName  string
 	mu                sync.Mutex // To protect access to the slices
 	log               = logger.GetTestnetLogger()
 )
@@ -137,7 +138,7 @@ func start(cli *client.Client, ctx context.Context) {
 
 	//Create shared volume
 	log.Debug("Creating shared volume")
-	sharedVolumeName, err := docker_control.CreateSharedVolume(cli, ctx)
+	sharedVolumeName, err = docker_control.CreateSharedVolume(cli, ctx)
 	if err != nil {
 		log.Fatalf("error creating shared volume: %v", err)
 	}
@@ -467,27 +468,6 @@ func main() {
 					fmt.Printf("failed to remove images: %v\n", err)
 				}
 			}
-			/*
-				case "add_goi2p_router":
-					if !running {
-						fmt.Println("Testnet isn't running")
-					} else {
-						err := addGOI2PRouter(cli, ctx)
-						if err != nil {
-							fmt.Printf("failed to add router: %v\n", err)
-						}
-					}
-				case "add_i2pd_router":
-					if !running {
-						fmt.Println("Testnet isn't running")
-					} else {
-						err := addI2PDRouter(cli, ctx)
-						if err != nil {
-							fmt.Printf("failed to add router: %v\n", err)
-						}
-					}
-
-			*/
 		case "add":
 			if len(parts) < 2 {
 				fmt.Println("Specify the type of router to add. Usage: add [goi2p_router|i2pd_router]")
@@ -526,7 +506,7 @@ func main() {
 					log.WithField("containerID", containerID).Debug("Syncing netDb for container")
 
 					// Sync the netDb directory to the shared volume
-					err := i2pd.SyncNetDbToShared(cli, ctx, containerID)
+					err := i2pd.SyncNetDbToShared(cli, ctx, containerID, sharedVolumeName) // Pass sharedVolumeName
 					if err != nil {
 						fmt.Printf("Failed to sync netDb from container %s: %v\n", containerID, err)
 					} else {
@@ -545,7 +525,7 @@ func main() {
 					log.WithField("containerID", containerID).Debug("Syncing netDb from shared volume to container")
 
 					// Sync the shared netDb to the container
-					err := i2pd.SyncSharedToNetDb(cli, ctx, containerID)
+					err := i2pd.SyncSharedToNetDb(cli, ctx, containerID, sharedVolumeName)
 					if err != nil {
 						fmt.Printf("Failed to sync netDb to container %s: %v\n", containerID, err)
 						continue

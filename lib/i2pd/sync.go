@@ -1,71 +1,114 @@
 package i2pd
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/go-i2p/go-i2p/lib/common/base64"
-	"io"
 	"os"
 	"path/filepath"
 )
 
-func SyncNetDbToShared(cli *client.Client, ctx context.Context, containerID string) error {
-	// Define the source and destination paths
+func SyncNetDbToShared(cli *client.Client, ctx context.Context, containerID string, volumeName string) error {
+	// Define the source path inside the container
 	sourcePath := "/root/.i2pd/netDb"
-	destinationPath := "/shared/netDb"
 
-	// Use Docker's API to copy files from the container
+	// Create a temporary helper container with the shared volume mounted
+	helperContainerName := "helper-container"
+	helperConfig := &container.Config{
+		Image: "alpine",                // Use a lightweight image
+		Cmd:   []string{"sleep", "60"}, // Keep the container running for the duration of the operation
+	}
+	hostConfig := &container.HostConfig{
+		Binds: []string{
+			fmt.Sprintf("%s:/shared", volumeName),
+		},
+	}
+
+	resp, err := cli.ContainerCreate(ctx, helperConfig, hostConfig, nil, nil, helperContainerName)
+	if err != nil {
+		return fmt.Errorf("error creating helper container: %v", err)
+	}
+	helperContainerID := resp.ID
+	defer func() {
+		// Clean up the helper container
+		removeOptions := container.RemoveOptions{Force: true}
+		cli.ContainerRemove(ctx, helperContainerID, removeOptions)
+	}()
+
+	// Start the helper container
+	startOptions := container.StartOptions{}
+	if err := cli.ContainerStart(ctx, helperContainerID, startOptions); err != nil {
+		return fmt.Errorf("error starting helper container: %v", err)
+	}
+
+	// Copy the netDb directory from the target container
 	reader, _, err := cli.CopyFromContainer(ctx, containerID, sourcePath)
 	if err != nil {
 		return fmt.Errorf("error copying from container: %v", err)
 	}
 	defer reader.Close()
 
-	// Read the content from the reader
-	content, err := io.ReadAll(reader)
+	// Copy the netDb directory to the helper container (which has the shared volume mounted)
+	err = cli.CopyToContainer(ctx, helperContainerID, "/shared/netDb", reader, types.CopyToContainerOptions{
+		AllowOverwriteDirWithFile: true,
+	})
 	if err != nil {
-		return fmt.Errorf("error reading content: %v", err)
-	}
-
-	// Write the content to the shared directory
-	sharedDir := filepath.Join(destinationPath)
-	err = os.MkdirAll(sharedDir, os.ModePerm)
-	if err != nil {
-		return fmt.Errorf("error creating shared directory: %v", err)
-	}
-
-	// Write content to the shared directory
-	err = os.WriteFile(filepath.Join(sharedDir, "netDb.tar"), content, 0644)
-	if err != nil {
-		return fmt.Errorf("error writing to shared directory: %v", err)
+		return fmt.Errorf("error copying to helper container: %v", err)
 	}
 
 	fmt.Println("Successfully synchronized netDb to shared volume")
 	return nil
 }
 
-func SyncSharedToNetDb(cli *client.Client, ctx context.Context, containerID string) error {
-	// Define the source and destination paths
-	sourcePath := "/shared/netDb/netDb.tar"
+func SyncSharedToNetDb(cli *client.Client, ctx context.Context, containerID string, volumeName string) error {
+	// Define the destination path inside the target container
 	destinationPath := "/root/.i2pd/netDb"
 
-	// Open the tar file from the shared directory
-	content, err := os.ReadFile(sourcePath)
-	if err != nil {
-		return fmt.Errorf("error reading from shared directory: %v", err)
+	// Create a temporary helper container with the shared volume mounted
+	helperContainerName := "helper-container"
+	helperConfig := &container.Config{
+		Image: "alpine",
+		Cmd:   []string{"sleep", "60"},
+	}
+	hostConfig := &container.HostConfig{
+		Binds: []string{
+			fmt.Sprintf("%s:/shared", volumeName),
+		},
 	}
 
-	// Create a tar reader from the content
-	tarReader := bytes.NewReader(content)
-	tarStream := io.NopCloser(tarReader) // Create a closer for the tar stream
-
-	// Use Docker's API to copy files to the container
-	err = cli.CopyToContainer(ctx, containerID, destinationPath, tarStream, container.CopyToContainerOptions{})
+	resp, err := cli.ContainerCreate(ctx, helperConfig, hostConfig, nil, nil, helperContainerName)
 	if err != nil {
-		return fmt.Errorf("error copying to container: %v", err)
+		return fmt.Errorf("error creating helper container: %v", err)
+	}
+	helperContainerID := resp.ID
+	defer func() {
+		removeOptions := container.RemoveOptions{Force: true}
+		cli.ContainerRemove(ctx, helperContainerID, removeOptions)
+	}()
+
+	// Start the helper container
+	startOptions := container.StartOptions{}
+	if err := cli.ContainerStart(ctx, helperContainerID, startOptions); err != nil {
+		return fmt.Errorf("error starting helper container: %v", err)
+	}
+
+	// Copy the netDb directory from the helper container (shared volume) to the target container
+	reader, _, err := cli.CopyFromContainer(ctx, helperContainerID, "/shared/netDb")
+	if err != nil {
+		return fmt.Errorf("error copying from helper container: %v", err)
+	}
+	defer reader.Close()
+
+	// Copy the netDb directory to the target container
+	copyToContainerOptions := container.CopyToContainerOptions{
+		AllowOverwriteDirWithFile: true,
+	}
+	err = cli.CopyToContainer(ctx, containerID, destinationPath, reader, copyToContainerOptions)
+	if err != nil {
+		return fmt.Errorf("error copying to target container: %v", err)
 	}
 
 	fmt.Println("Successfully synchronized netDb from shared volume to container")
