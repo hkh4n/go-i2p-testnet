@@ -8,6 +8,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
+	"github.com/go-i2p/go-i2p/lib/common/router_info"
 	"go-i2p-testnet/lib/docker_control"
 	goi2pnode "go-i2p-testnet/lib/go-i2p"
 	"go-i2p-testnet/lib/i2pd"
@@ -489,7 +490,7 @@ func main() {
 		case "add":
 			if len(parts) < 2 {
 				fmt.Println("Specify the type of router to add. Usage: add [goi2p_router|i2pd_router]")
-				return
+				continue
 			}
 			switch parts[1] {
 			case "goi2p_router":
@@ -522,6 +523,65 @@ func main() {
 			return
 		default:
 			fmt.Println("Unknown command. Type 'help' for a list of commands")
+
+		case "hidden": // This is used for debugging and experimental reasons, not meant to be used for the end user but to force actions
+			if len(parts) < 2 {
+				fmt.Println("Specify hidden command")
+				continue
+			}
+			switch parts[1] {
+			case "extract":
+				if len(parts) < 4 {
+					fmt.Println("Usage: hidden extract <containerID> <filePath>")
+					continue
+				}
+
+				containerID := parts[2]
+				filePath := parts[3]
+
+				content, err := docker_control.ReadFileFromContainer(cli, ctx, containerID, filePath)
+				if err != nil {
+					fmt.Printf("Error extracting file: %v\n", err)
+					continue
+				}
+
+				fmt.Println("File content:")
+				fmt.Println(content)
+			case "read_router_info":
+				if len(parts) < 4 {
+					fmt.Println("Usage: hidden read_router_info <containerID> <filePath>")
+					continue
+				}
+
+				containerID := parts[2]
+				filePath := parts[3]
+
+				content, err := docker_control.ReadFileFromContainer(cli, ctx, containerID, filePath)
+				if err != nil {
+					fmt.Printf("Error extracting file: %v\n", err)
+					continue
+				}
+
+				ri, _, err := router_info.ReadRouterInfo([]byte(content))
+				if err != nil {
+					fmt.Printf("Error reading router info: %v\n", err)
+					continue
+				}
+				fmt.Println("Successfully read router info")
+				fmt.Printf("Options: %v\n", ri.Options())
+				fmt.Printf("Signature: %s\n", ri.Signature())
+				fmt.Printf("GoodVersion: %v\n", ri.GoodVersion())
+				fmt.Printf("IdentHash: %v\n", ri.IdentHash())
+				fmt.Printf("Network: %v\n", ri.Network())
+				fmt.Printf("Peersize: %v\n", ri.PeerSize())
+				fmt.Printf("Published: %v\n", ri.Published())
+				fmt.Printf("Reachable: %v\n", ri.Reachable())
+				fmt.Printf("RouterAddressCount: %v\n", ri.RouterAddressCount())
+				fmt.Printf("RouterAddresses: %v\n", ri.RouterAddresses())
+				fmt.Printf("RouterIdentity: %v\n", ri.RouterIdentity())
+				fmt.Printf("RouterVersion: %v\n", ri.RouterVersion())
+				fmt.Printf("UnCongested: %v\n", ri.UnCongested())
+			}
 		}
 	}
 
