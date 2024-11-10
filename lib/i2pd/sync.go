@@ -9,6 +9,8 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/go-i2p/go-i2p/lib/common/base64"
+	"io"
+	"os"
 )
 
 func SyncNetDbToShared(cli *client.Client, ctx context.Context, containerID string, volumeName string) error {
@@ -166,6 +168,7 @@ func SyncRouterInfoToNetDb(cli *client.Client, ctx context.Context, containerID 
 	if err != nil {
 		return fmt.Errorf("error getting router info: %v", err)
 	}
+	log.Debugf("got filename: %s\n", filename)
 
 	// Extract the first two characters of the encoded hash
 	identHash := ri.IdentHash()
@@ -201,27 +204,15 @@ func SyncRouterInfoToNetDb(cli *client.Client, ctx context.Context, containerID 
 		return fmt.Errorf("error starting helper container: %v", err)
 	}
 
-	// Ensure the target directory exists inside the helper container
-	targetDir := fmt.Sprintf("/shared/netDb/%s", directory)
-	execConfig := types.ExecConfig{
-		Cmd:          []string{"mkdir", "-p", targetDir},
-		AttachStdout: true,
-		AttachStderr: true,
-	}
-	execIDResp, err := cli.ContainerExecCreate(ctx, helperContainerID, execConfig)
-	if err != nil {
-		return fmt.Errorf("error creating exec config: %v", err)
-	}
-	err = cli.ContainerExecStart(ctx, execIDResp.ID, types.ExecStartCheck{})
-	if err != nil {
-		return fmt.Errorf("error starting exec: %v", err)
-	}
+	// Define the target directory inside the helper container
+	targetDir := "/shared/netDb"
 
-	// Create a tar archive with the RouterInfo file
+	// Create a tar archive with the directory and file
 	tarBuffer := new(bytes.Buffer)
 	tw := tar.NewWriter(tarBuffer)
+	// Include the directory in the tar header
 	header := &tar.Header{
-		Name: filename,
+		Name: fmt.Sprintf("%s/%s", directory, filename), // Include directory
 		Mode: 0600,
 		Size: int64(len(routerInfoString)),
 	}
@@ -240,6 +231,23 @@ func SyncRouterInfoToNetDb(cli *client.Client, ctx context.Context, containerID 
 	if err != nil {
 		return fmt.Errorf("error copying router info to helper container: %v", err)
 	}
+
+	// Optionally, list the contents of the target directory to verify
+	execConfig := types.ExecConfig{
+		Cmd:          []string{"ls", "-lR", targetDir},
+		AttachStdout: true,
+		AttachStderr: true,
+	}
+	execIDResp, err := cli.ContainerExecCreate(ctx, helperContainerID, execConfig)
+	if err != nil {
+		return fmt.Errorf("error creating exec config for listing: %v", err)
+	}
+	respAttach, err := cli.ContainerExecAttach(ctx, execIDResp.ID, types.ExecStartCheck{})
+	if err != nil {
+		return fmt.Errorf("error attaching to exec: %v", err)
+	}
+	defer respAttach.Close()
+	io.Copy(os.Stdout, respAttach.Reader)
 
 	fmt.Printf("Successfully synced RouterInfo to %s\n", targetDir)
 	return nil

@@ -540,7 +540,7 @@ func main() {
 					log.WithField("containerID", containerID).Debug("Syncing RouterInfo from container to shared netDb")
 
 					// Sync the RouterInfo from the container to the shared netDb
-					err := i2pd.SyncRouterInfoToNetDb(cli, ctx, containerID, "/shared/netDb")
+					err := i2pd.SyncRouterInfoToNetDb(cli, ctx, containerID, sharedVolumeName)
 					if err != nil {
 						fmt.Printf("Failed to sync RouterInfo from container %s to shared netDb: %v\n", containerID, err)
 					} else {
