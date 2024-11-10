@@ -8,6 +8,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
+	"github.com/go-i2p/go-i2p/lib/common/base64"
 	"github.com/go-i2p/go-i2p/lib/common/router_info"
 	"go-i2p-testnet/lib/docker_control"
 	goi2pnode "go-i2p-testnet/lib/go-i2p"
@@ -571,7 +572,9 @@ func main() {
 				fmt.Printf("Options: %v\n", ri.Options())
 				fmt.Printf("Signature: %s\n", ri.Signature())
 				fmt.Printf("GoodVersion: %v\n", ri.GoodVersion())
-				fmt.Printf("IdentHash: %v\n", ri.IdentHash())
+				identHash := ri.IdentHash()
+				encodedHash := base64.EncodeToString(identHash[:])
+				fmt.Printf("IdentHash: %v\n", encodedHash)
 				fmt.Printf("Network: %v\n", ri.Network())
 				fmt.Printf("Peersize: %v\n", ri.PeerSize())
 				fmt.Printf("Published: %v\n", ri.Published())
