@@ -14,15 +14,14 @@ import (
 )
 
 func SyncNetDbToShared(cli *client.Client, ctx context.Context, containerID string, volumeName string) error {
-	// Define the source path inside the container
 	sourcePath := "/root/.i2pd/netDb/"
 
-	// Create a temporary helper container with the shared volume mounted
 	helperContainerName := "helper-container"
 	helperConfig := &container.Config{
-		Image: "alpine",                // Use a lightweight image
-		Cmd:   []string{"sleep", "60"}, // Keep the container running for the duration of the operation
+		Image: "alpine",
+		Cmd:   []string{"sleep", "60"},
 	}
+
 	hostConfig := &container.HostConfig{
 		Binds: []string{
 			fmt.Sprintf("%s:/shared", volumeName),
@@ -35,20 +34,18 @@ func SyncNetDbToShared(cli *client.Client, ctx context.Context, containerID stri
 	}
 	helperContainerID := resp.ID
 	defer func() {
-		// Clean up the helper container
 		removeOptions := container.RemoveOptions{Force: true}
 		cli.ContainerRemove(ctx, helperContainerID, removeOptions)
 	}()
 
-	// Start the helper container
 	startOptions := container.StartOptions{}
 	if err := cli.ContainerStart(ctx, helperContainerID, startOptions); err != nil {
 		return fmt.Errorf("error starting helper container: %v", err)
 	}
 
-	// **Create the /shared/netDb directory inside the helper container**
+	// First ensure temp and target directories exist and are clean
 	execConfig := types.ExecConfig{
-		Cmd:          []string{"mkdir", "-p", "/shared/netDb"},
+		Cmd:          []string{"sh", "-c", "rm -rf /shared/netDb /tmp/netdb_extract && mkdir -p /shared/netDb /tmp/netdb_extract"},
 		AttachStdout: true,
 		AttachStderr: true,
 	}
@@ -60,19 +57,40 @@ func SyncNetDbToShared(cli *client.Client, ctx context.Context, containerID stri
 		return fmt.Errorf("error starting exec: %v", err)
 	}
 
-	// Copy the netDb directory from the target container
+	// Copy from source container to temp location
 	reader, _, err := cli.CopyFromContainer(ctx, containerID, sourcePath)
 	if err != nil {
 		return fmt.Errorf("error copying from container: %v", err)
 	}
 	defer reader.Close()
 
-	// Copy the netDb directory to the helper container (which has the shared volume mounted)
-	err = cli.CopyToContainer(ctx, helperContainerID, "/shared/netDb", reader, types.CopyToContainerOptions{
-		AllowOverwriteDirWithFile: true,
-	})
+	err = cli.CopyToContainer(ctx, helperContainerID, "/tmp/netdb_extract", reader, types.CopyToContainerOptions{})
 	if err != nil {
-		return fmt.Errorf("error copying to helper container: %v", err)
+		return fmt.Errorf("error copying to temp: %v", err)
+	}
+
+	// Move contents to final location
+	execConfig = types.ExecConfig{
+		Cmd: []string{"sh", "-c", "cp -r /tmp/netdb_extract/root/.i2pd/netDb/* /shared/netDb/ 2>/dev/null || true"},
+	}
+	execIDResp, err = cli.ContainerExecCreate(ctx, helperContainerID, execConfig)
+	if err != nil {
+		return fmt.Errorf("error moving files: %v", err)
+	}
+	if err := cli.ContainerExecStart(ctx, execIDResp.ID, types.ExecStartCheck{}); err != nil {
+		return fmt.Errorf("error moving files: %v", err)
+	}
+
+	// Clean up temp directory
+	execConfig = types.ExecConfig{
+		Cmd: []string{"rm", "-rf", "/tmp/netdb_extract"},
+	}
+	execIDResp, err = cli.ContainerExecCreate(ctx, helperContainerID, execConfig)
+	if err != nil {
+		return fmt.Errorf("error cleaning up: %v", err)
+	}
+	if err := cli.ContainerExecStart(ctx, execIDResp.ID, types.ExecStartCheck{}); err != nil {
+		return fmt.Errorf("error cleaning up: %v", err)
 	}
 
 	fmt.Println("Successfully synchronized netDb to shared volume")

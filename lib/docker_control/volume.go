@@ -31,6 +31,6 @@ func CreateSharedVolume(cli *client.Client, ctx context.Context) (string, error)
 		}).Error("Failed to create Docker volume")
 		return "", fmt.Errorf("error creating shared volume: %v", err)
 	}
-	log.WithField("volumeName", SHARED_VOLUME).Debug("Successfully created Docker volume")
+	log.WithField("volumeName", SHARED_VOLUME).Debug("Successfully created shared Docker volume")
 	return SHARED_VOLUME, nil
 }
