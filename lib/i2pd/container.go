@@ -12,7 +12,7 @@ import (
 var log = logger.GetTestnetLogger()
 
 // CreateRouterContainer sets up an i2pd router container.
-func CreateRouterContainer(cli *client.Client, ctx context.Context, routerID int, ip string, networkName string, configDir string, sharedVolumeName string) (string, error) {
+func CreateRouterContainer(cli *client.Client, ctx context.Context, routerID int, ip string, networkName string, configDir string, sharedVolumeName string, dataDir string) (string, error) {
 	containerName := fmt.Sprintf("router-i2pd-%d", routerID)
 
 	log.WithFields(map[string]interface{}{
@@ -32,6 +32,7 @@ func CreateRouterContainer(cli *client.Client, ctx context.Context, routerID int
 		Binds: []string{
 			fmt.Sprintf("%s:/var/lib/i2pd", configDir),
 			fmt.Sprintf("%s:/shared", sharedVolumeName),
+			fmt.Sprintf("%s:/root/.i2pd", dataDir),
 		},
 	}
 
@@ -54,6 +55,7 @@ func CreateRouterContainer(cli *client.Client, ctx context.Context, routerID int
 		"ip":            ip,
 		"networkName":   networkName,
 		"configDir":     configDir,
+		"dataDir":       dataDir,
 	}).Debug("Creating i2pd container with config")
 
 	// Create the container

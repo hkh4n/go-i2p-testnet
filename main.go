@@ -346,8 +346,14 @@ func addI2PDRouter(cli *client.Client, ctx context.Context) error {
 		return err
 	}
 
+	dataDir := fmt.Sprintf("testnet/i2pd_router%d_data", routerID)
+	absDataDir, err := filepath.Abs(dataDir)
+	if err != nil {
+		panic(err)
+	}
+
 	// Create and start router container
-	containerID, err := i2pd.CreateRouterContainer(cli, ctx, routerID, nextIP, NETWORK, absConfigDir, sharedVolumeName)
+	containerID, err := i2pd.CreateRouterContainer(cli, ctx, routerID, nextIP, NETWORK, absConfigDir, sharedVolumeName, absDataDir)
 	if err != nil {
 		log.WithError(err).Error("Failed to create i2pd router container")
 		return err
