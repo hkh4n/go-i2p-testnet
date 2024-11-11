@@ -495,7 +495,7 @@ func main() {
 			default:
 				fmt.Println("Unknown router type. Available types: goi2p_router, i2pd_router")
 			}
-		case "sync_shared":
+		case "sync_i2pd_shared":
 			if !running {
 				fmt.Println("Testnet isn't running")
 			} else {

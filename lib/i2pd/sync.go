@@ -9,29 +9,40 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/go-i2p/go-i2p/lib/common/base64"
+	"github.com/sirupsen/logrus"
 	"io"
 	"os"
 )
 
 func SyncNetDbToShared(cli *client.Client, ctx context.Context, containerID string, volumeName string) error {
-	sourcePath := "/root/.i2pd/netDb/"
+	routerInfoString, filename, directory, err := GetRouterInfoWithFilenameRaw(cli, ctx, containerID)
+	if err != nil {
+		log.WithError(err).Error("GetRouterInfoWithFilenameRaw failed")
+	}
+	log.WithFields(logrus.Fields{
+		"routerInfoString len": len(routerInfoString),
+		"filename":             filename,
+		"directory":            directory,
+	}).Debug("GetRouterInfoWithFilename Raw")
 
-	helperContainerName := "helper-container"
+	// Create the temporary helper container
+	helperContainerName := fmt.Sprintf("helper-container-%s", containerID[:12])
 	helperConfig := &container.Config{
 		Image: "alpine",
 		Cmd:   []string{"sleep", "60"},
 	}
 
-	hostConfig := &container.HostConfig{
+	hostConfig := container.HostConfig{
 		Binds: []string{
 			fmt.Sprintf("%s:/shared", volumeName),
 		},
 	}
 
-	resp, err := cli.ContainerCreate(ctx, helperConfig, hostConfig, nil, nil, helperContainerName)
+	resp, err := cli.ContainerCreate(ctx, helperConfig, &hostConfig, nil, nil, helperContainerName)
 	if err != nil {
 		return fmt.Errorf("error creating helper container: %v", err)
 	}
+
 	helperContainerID := resp.ID
 	defer func() {
 		removeOptions := container.RemoveOptions{Force: true}
@@ -42,58 +53,52 @@ func SyncNetDbToShared(cli *client.Client, ctx context.Context, containerID stri
 	if err := cli.ContainerStart(ctx, helperContainerID, startOptions); err != nil {
 		return fmt.Errorf("error starting helper container: %v", err)
 	}
-
-	// First ensure temp and target directories exist and are clean
-	execConfig := types.ExecConfig{
-		Cmd:          []string{"sh", "-c", "rm -rf /shared/netDb /tmp/netdb_extract && mkdir -p /shared/netDb /tmp/netdb_extract"},
+	execConfig := container.ExecOptions{
+		Cmd:          []string{"mkdir", "-p", fmt.Sprintf("/shared/netDb/%s", directory)},
 		AttachStdout: true,
 		AttachStderr: true,
 	}
 	execIDResp, err := cli.ContainerExecCreate(ctx, helperContainerID, execConfig)
 	if err != nil {
-		return fmt.Errorf("error creating exec config: %v", err)
+		return fmt.Errorf("error creating mkdir exec: %v", err)
 	}
+
 	if err := cli.ContainerExecStart(ctx, execIDResp.ID, types.ExecStartCheck{}); err != nil {
-		return fmt.Errorf("error starting exec: %v", err)
+		return fmt.Errorf("error executing mkdir: %v", err)
+	}
+	// Create a tar archive containing the router info file
+	tarBuffer := new(bytes.Buffer)
+	tw := tar.NewWriter(tarBuffer)
+
+	header := &tar.Header{
+		Name: filename,
+		Mode: 0600,
+		Size: int64(len(routerInfoString)),
+	}
+	if err := tw.WriteHeader(header); err != nil {
+		return fmt.Errorf("error writing tar header: %v", err)
 	}
 
-	// Copy from source container to temp location
-	reader, _, err := cli.CopyFromContainer(ctx, containerID, sourcePath)
+	if _, err := tw.Write([]byte(routerInfoString)); err != nil {
+		return fmt.Errorf("error writing router info to tar: %v", err)
+	}
+
+	if err := tw.Close(); err != nil {
+		return fmt.Errorf("error closing tar writer: %v", err)
+	}
+
+	// Copy the tar archive to the correct directory in the helper container
+	targetPath := fmt.Sprintf("/shared/netDb/%s", directory)
+	err = cli.CopyToContainer(ctx, helperContainerID, targetPath, bytes.NewReader(tarBuffer.Bytes()), types.CopyToContainerOptions{})
 	if err != nil {
-		return fmt.Errorf("error copying from container: %v", err)
-	}
-	defer reader.Close()
-
-	err = cli.CopyToContainer(ctx, helperContainerID, "/tmp/netdb_extract", reader, types.CopyToContainerOptions{})
-	if err != nil {
-		return fmt.Errorf("error copying to temp: %v", err)
+		return fmt.Errorf("error copying router info to helper container: %v", err)
 	}
 
-	// Move contents to final location
-	execConfig = types.ExecConfig{
-		Cmd: []string{"sh", "-c", "cp -r /tmp/netdb_extract/root/.i2pd/netDb/* /shared/netDb/ 2>/dev/null || true"},
-	}
-	execIDResp, err = cli.ContainerExecCreate(ctx, helperContainerID, execConfig)
-	if err != nil {
-		return fmt.Errorf("error moving files: %v", err)
-	}
-	if err := cli.ContainerExecStart(ctx, execIDResp.ID, types.ExecStartCheck{}); err != nil {
-		return fmt.Errorf("error moving files: %v", err)
-	}
-
-	// Clean up temp directory
-	execConfig = types.ExecConfig{
-		Cmd: []string{"rm", "-rf", "/tmp/netdb_extract"},
-	}
-	execIDResp, err = cli.ContainerExecCreate(ctx, helperContainerID, execConfig)
-	if err != nil {
-		return fmt.Errorf("error cleaning up: %v", err)
-	}
-	if err := cli.ContainerExecStart(ctx, execIDResp.ID, types.ExecStartCheck{}); err != nil {
-		return fmt.Errorf("error cleaning up: %v", err)
-	}
-
-	fmt.Println("Successfully synchronized netDb to shared volume")
+	log.WithFields(logrus.Fields{
+		"directory": directory,
+		"filename":  filename,
+		"path":      targetPath,
+	}).Debug("Successfully synced router info to shared volume")
 	return nil
 }
 

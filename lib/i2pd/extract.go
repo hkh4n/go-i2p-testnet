@@ -23,3 +23,20 @@ func GetRouterInfoWithFilename(cli *client.Client, ctx context.Context, containe
 	filename := "routerInfo-" + encodedHash + ".dat"
 	return &ri, routerInfoString, filename, nil
 }
+
+// GetRouterInfoWithFilename extracts RouterInfo and returns it with the routerInfoString and filename
+func GetRouterInfoWithFilenameRaw(cli *client.Client, ctx context.Context, containerID string) (string, string, string, error) {
+	routerInfoString, err := docker_control.ReadFileFromContainer(cli, ctx, containerID, "/root/.i2pd/router.info")
+	if err != nil {
+		return "", "", "", err
+	}
+	ri, _, err := router_info.ReadRouterInfo([]byte(routerInfoString))
+	if err != nil {
+		return "", "", "", err
+	}
+	identHash := ri.IdentHash()
+	encodedHash := base64.EncodeToString(identHash[:])
+	filename := "routerInfo-" + encodedHash + ".dat"
+	directory := "r" + string(identHash[:1])
+	return routerInfoString, filename, directory, err
+}
