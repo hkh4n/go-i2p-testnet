@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/chzyer/readline"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 	"github.com/go-i2p/go-i2p/lib/common/base64"
 	"github.com/go-i2p/go-i2p/lib/common/router_info"
@@ -16,6 +15,7 @@ import (
 	"go-i2p-testnet/lib/utils/logger"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -53,7 +53,7 @@ const (
 )
 
 // cleanup removes all created Docker resources: containers, volumes, and network.
-func cleanup(cli *client.Client, ctx context.Context, createdContainers []string, createdVolumes []string, networkName string) {
+func cleanup(cli *client.Client, ctx context.Context, createdContainers []string, networkName string) {
 	log.WithField("networkName", networkName).Debug("Starting cleanup of Docker resources")
 
 	// Remove containers
@@ -83,20 +83,6 @@ func cleanup(cli *client.Client, ctx context.Context, createdContainers []string
 		}
 	}
 
-	// Remove volumes
-	for _, volumeName := range createdVolumes {
-		log.WithField("volumeName", volumeName).Debug("Attempting to remove volume")
-		err := cli.VolumeRemove(ctx, volumeName, true)
-		if err != nil {
-			log.WithFields(map[string]interface{}{
-				"volumeName": volumeName,
-				"error":      err,
-			}).Error("Failed to remove volume")
-		} else {
-			log.WithField("volumeName", volumeName).Debug("Successfully removed volume")
-		}
-	}
-
 	// Remove network
 	log.WithField("networkName", networkName).Debug("Attempting to remove network")
 	err := cli.NetworkRemove(ctx, networkName)
@@ -108,8 +94,15 @@ func cleanup(cli *client.Client, ctx context.Context, createdContainers []string
 	} else {
 		log.WithField("networkName", networkName).Debug("Successfully removed network")
 	}
-}
 
+	// Remove the testnet directory
+	err = os.RemoveAll("testnet")
+	if err != nil {
+		log.WithError(err).Error("Failed to remove testnet directory")
+	} else {
+		log.Debug("Successfully removed testnet directory")
+	}
+}
 func addCreated(containerID, volumeID string) {
 	//mu.Lock() //For some reason, this freezes
 	//defer mu.Unlock()
@@ -136,17 +129,22 @@ func start(cli *client.Client, ctx context.Context) {
 		"networkID":   networkID,
 	}).Debug("Successfully created network")
 
-	//Create shared volume
-	log.Debug("Creating shared volume")
-	sharedVolumeName, err = docker_control.CreateSharedVolume(cli, ctx)
+	// Create testnet directory if it doesn't exist
+	err = os.MkdirAll("testnet/shared", 0755)
 	if err != nil {
-		log.Fatalf("error creating shared volume: %v", err)
+		log.Fatalf("error creating testnet/shared directory: %v", err)
 	}
-	createdVolumes = append(createdVolumes, sharedVolumeName)
-	running = true
-	log.WithField("volumeName", sharedVolumeName).Debug("Successfully created shared volume")
-}
 
+	// Convert to absolute path
+	absSharedPath, err := filepath.Abs("testnet/shared")
+	if err != nil {
+		log.Fatalf("error getting absolute path of shared directory: %v", err)
+	}
+	sharedVolumeName = absSharedPath
+
+	running = true
+	log.WithField("sharedVolumeName", sharedVolumeName).Debug("Successfully created shared directory")
+}
 func status(cli *client.Client, ctx context.Context) {
 	log.Debug("Fetching status of router containers")
 
@@ -317,32 +315,39 @@ func addI2PDRouter(cli *client.Client, ctx context.Context) error {
 		return err
 	}
 
-	// Create configuration volume
-	volumeName := fmt.Sprintf("i2pd_router%d_config", routerID)
-	createOptions := volume.CreateOptions{
-		Name: volumeName,
-	}
-	_, err = cli.VolumeCreate(ctx, createOptions)
+	// Create configuration directory
+	configDir := fmt.Sprintf("testnet/i2pd_router%d_config", routerID)
+	err = os.MkdirAll(configDir, 0755)
 	if err != nil {
 		log.WithFields(map[string]interface{}{
-			"volumeName": volumeName,
-			"error":      err,
-		}).Error("Failed to create volume")
+			"configDir": configDir,
+			"error":     err,
+		}).Error("Failed to create configuration directory")
 		return err
 	}
 
-	// Copy configuration to volume
-	err = i2pd.CopyConfigToVolume(cli, ctx, volumeName, configData)
+	// Convert to absolute path
+	absConfigDir, err := filepath.Abs(configDir)
 	if err != nil {
 		log.WithFields(map[string]interface{}{
-			"volumeName": volumeName,
-			"error":      err,
-		}).Error("Failed to copy config to volume")
+			"configDir": configDir,
+			"error":     err,
+		}).Error("Failed to get absolute path of configuration directory")
+		return err
+	}
+
+	// Copy configuration to directory
+	err = i2pd.CopyConfigToDir(absConfigDir, configData)
+	if err != nil {
+		log.WithFields(map[string]interface{}{
+			"configDir": absConfigDir,
+			"error":     err,
+		}).Error("Failed to copy config to directory")
 		return err
 	}
 
 	// Create and start router container
-	containerID, err := i2pd.CreateRouterContainer(cli, ctx, routerID, nextIP, NETWORK, volumeName)
+	containerID, err := i2pd.CreateRouterContainer(cli, ctx, routerID, nextIP, NETWORK, absConfigDir, sharedVolumeName)
 	if err != nil {
 		log.WithError(err).Error("Failed to create i2pd router container")
 		return err
@@ -351,17 +356,17 @@ func addI2PDRouter(cli *client.Client, ctx context.Context) error {
 	log.WithFields(map[string]interface{}{
 		"routerID":    routerID,
 		"containerID": containerID,
-		"volumeID":    volumeName,
+		"configDir":   absConfigDir,
 		"ip":          nextIP,
 	}).Debug("Adding router to tracking lists")
 
 	// Update tracking lists
 	createdRouters = append(createdRouters, containerID)
 	createdContainers = append(createdContainers, containerID)
-	createdVolumes = append(createdVolumes, volumeName)
+	createdVolumes = append(createdVolumes, absConfigDir)
 
 	// Add to any additional tracking structures if necessary
-	addCreated(containerID, volumeName)
+	addCreated(containerID, absConfigDir)
 	return nil
 }
 
@@ -379,7 +384,7 @@ func main() {
 	defer func() {
 		if running {
 			log.Debug("Performing cleanup on exit")
-			cleanup(cli, ctx, createdContainers, createdVolumes, NETWORK)
+			cleanup(cli, ctx, createdContainers, NETWORK)
 		}
 	}()
 
@@ -428,7 +433,7 @@ func main() {
 			}
 		case "stop":
 			if running {
-				cleanup(cli, ctx, createdContainers, createdVolumes, NETWORK)
+				cleanup(cli, ctx, createdContainers, NETWORK)
 				running = false
 			} else {
 				fmt.Println("Testnet isn't running")
@@ -499,18 +504,18 @@ func main() {
 			if !running {
 				fmt.Println("Testnet isn't running")
 			} else {
-				log.Debug("Syncing netDb from all router containers to the shared volume")
+				log.Debug("Syncing netDb from all router containers to the shared directory")
 
 				// Iterate through all created router containers
 				for _, containerID := range createdContainers {
 					log.WithField("containerID", containerID).Debug("Syncing netDb for container")
 
-					// Sync the netDb directory to the shared volume
-					err := i2pd.SyncNetDbToShared(cli, ctx, containerID, sharedVolumeName) // Pass sharedVolumeName
+					// Sync the netDb directory to the shared directory
+					err := i2pd.SyncNetDbToShared(cli, ctx, containerID)
 					if err != nil {
 						fmt.Printf("Failed to sync netDb from container %s: %v\n", containerID, err)
 					} else {
-						fmt.Printf("Successfully synced netDb from container %s to shared volume\n", containerID)
+						fmt.Printf("Successfully synced netDb from container %s to shared directory\n", containerID)
 					}
 				}
 			}
@@ -518,19 +523,19 @@ func main() {
 			if !running {
 				fmt.Println("Testnet isn't running")
 			} else {
-				log.Debug("Syncing netDb from shared volume to all router containers")
+				log.Debug("Syncing netDb from shared directory to all router containers")
 
-				// Sync from shared volume to all router containers
+				// Sync from shared directory to all router containers
 				for _, containerID := range createdContainers {
-					log.WithField("containerID", containerID).Debug("Syncing netDb from shared volume to container")
+					log.WithField("containerID", containerID).Debug("Syncing netDb from shared directory to container")
 
 					// Sync the shared netDb to the container
-					err := i2pd.SyncSharedToNetDb(cli, ctx, containerID, sharedVolumeName)
+					err := i2pd.SyncSharedToNetDb(cli, ctx, containerID)
 					if err != nil {
 						fmt.Printf("Failed to sync netDb to container %s: %v\n", containerID, err)
 						continue
 					} else {
-						fmt.Printf("Successfully synced netDb to container %s from shared volume\n", containerID)
+						fmt.Printf("Successfully synced netDb to container %s from shared directory\n", containerID)
 					}
 				}
 
@@ -540,7 +545,7 @@ func main() {
 					log.WithField("containerID", containerID).Debug("Syncing RouterInfo from container to shared netDb")
 
 					// Sync the RouterInfo from the container to the shared netDb
-					err := i2pd.SyncRouterInfoToNetDb(cli, ctx, containerID, sharedVolumeName)
+					err := i2pd.SyncRouterInfoToNetDb(cli, ctx, containerID)
 					if err != nil {
 						fmt.Printf("Failed to sync RouterInfo from container %s to shared netDb: %v\n", containerID, err)
 					} else {
@@ -552,7 +557,7 @@ func main() {
 		case "exit":
 			fmt.Println("Exiting...")
 			if running {
-				cleanup(cli, ctx, createdContainers, createdVolumes, NETWORK)
+				cleanup(cli, ctx, createdContainers, NETWORK)
 			}
 			return
 		default:

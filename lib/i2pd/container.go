@@ -6,14 +6,13 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
-	"go-i2p-testnet/lib/docker_control"
 	"go-i2p-testnet/lib/utils/logger"
 )
 
 var log = logger.GetTestnetLogger()
 
 // CreateRouterContainer sets up an i2pd router container.
-func CreateRouterContainer(cli *client.Client, ctx context.Context, routerID int, ip string, networkName string, volumeName string) (string, error) {
+func CreateRouterContainer(cli *client.Client, ctx context.Context, routerID int, ip string, networkName string, configDir string, sharedVolumeName string) (string, error) {
 	containerName := fmt.Sprintf("router-i2pd-%d", routerID)
 
 	log.WithFields(map[string]interface{}{
@@ -28,12 +27,11 @@ func CreateRouterContainer(cli *client.Client, ctx context.Context, routerID int
 		Image: "i2pd-node",
 	}
 
-	// Host configuration
+	// Host configuration with bind mounts
 	hostConfig := &container.HostConfig{
 		Binds: []string{
-			fmt.Sprintf("%s:/var/lib/i2pd", volumeName),
-			//fmt.Sprintf("%s:/root/.i2pd", volumeName),
-			fmt.Sprintf("%s:/shared", docker_control.SHARED_VOLUME), //move SHARED_VOLUME to docker_control
+			fmt.Sprintf("%s:/var/lib/i2pd", configDir),
+			fmt.Sprintf("%s:/shared", sharedVolumeName),
 		},
 	}
 
@@ -55,7 +53,7 @@ func CreateRouterContainer(cli *client.Client, ctx context.Context, routerID int
 		"image":         containerConfig.Image,
 		"ip":            ip,
 		"networkName":   networkName,
-		"volumeName":    volumeName,
+		"configDir":     configDir,
 	}).Debug("Creating i2pd container with config")
 
 	// Create the container

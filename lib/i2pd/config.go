@@ -8,6 +8,9 @@ import (
 	"github.com/docker/docker/client"
 	"go-i2p-testnet/lib/utils"
 	"gopkg.in/ini.v1"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 )
 
 type I2PDConfig struct {
@@ -507,5 +510,25 @@ func CopyConfigToVolume(cli *client.Client, ctx context.Context, volumeName stri
 	}
 
 	log.Debug("Successfully copied config to volume")
+	return nil
+}
+
+func CopyConfigToDir(dirPath string, configData string) error {
+	// Ensure the directory exists
+	err := os.MkdirAll(dirPath, 0755)
+	if err != nil {
+		log.WithError(err).Error("Failed to create directory")
+		return fmt.Errorf("error creating directory: %v", err)
+	}
+
+	// Write the configData to a file in dirPath
+	configFilePath := filepath.Join(dirPath, "i2pd.conf")
+	err = ioutil.WriteFile(configFilePath, []byte(configData), 0644)
+	if err != nil {
+		log.WithError(err).Error("Failed to write config file")
+		return fmt.Errorf("error writing config file: %v", err)
+	}
+
+	log.Debug("Successfully wrote config to directory")
 	return nil
 }
