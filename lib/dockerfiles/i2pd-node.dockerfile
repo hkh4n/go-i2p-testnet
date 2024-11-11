@@ -4,4 +4,4 @@ RUN apk add --no-cache i2pd
 
 EXPOSE 7070
 
-CMD ["i2pd"]
+CMD ["i2pd --loglevel=debug"]
