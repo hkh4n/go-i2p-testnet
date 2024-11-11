@@ -127,7 +127,7 @@ func SyncRouterInfoToNetDb(cli *client.Client, ctx context.Context, containerID 
 	// Extract the first two characters of the encoded hash
 	identHash := ri.IdentHash()
 	encodedHash := base64.EncodeToString(identHash[:])
-	directory := encodedHash[:2] // Get the first two characters
+	directory := "r" + encodedHash[:1]
 
 	// Define the target directory in shared netDb
 	targetDir := filepath.Join("testnet/shared/netDb", directory)
