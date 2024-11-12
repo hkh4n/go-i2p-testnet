@@ -53,6 +53,23 @@ func SyncNetDbToShared(cli *client.Client, ctx context.Context, containerID stri
 		return fmt.Errorf("error starting helper container: %v", err)
 	}
 
+	// Create the target directory inside the helper container**
+	mkdirCmd := []string{"mkdir", "-p", fmt.Sprintf("/shared/netDb/%s", directory)}
+	execConfig := types.ExecConfig{
+		Cmd:          mkdirCmd,
+		AttachStdout: true,
+		AttachStderr: true,
+	}
+	execIDResp, err := cli.ContainerExecCreate(ctx, helperContainerID, execConfig)
+	if err != nil {
+		return fmt.Errorf("error creating exec config for mkdir: %v", err)
+	}
+
+	err = cli.ContainerExecStart(ctx, execIDResp.ID, types.ExecStartCheck{})
+	if err != nil {
+		return fmt.Errorf("error executing mkdir in helper container: %v", err)
+	}
+
 	// Create a tar archive containing the router info file
 	tarBuffer := new(bytes.Buffer)
 	tw := tar.NewWriter(tarBuffer)
@@ -88,6 +105,8 @@ func SyncNetDbToShared(cli *client.Client, ctx context.Context, containerID stri
 
 	return nil
 }
+
+// SyncSharedToNetDb syncs netDb from the shared volume to the router container
 func SyncSharedToNetDb(cli *client.Client, ctx context.Context, containerID string, volumeName string) error {
 	// Define the destination path inside the target container
 	destinationPath := "/root/.i2pd/netDb"
@@ -120,45 +139,47 @@ func SyncSharedToNetDb(cli *client.Client, ctx context.Context, containerID stri
 		return fmt.Errorf("error starting helper container: %v", err)
 	}
 
-	// **Check if /shared/netDb exists in the helper container**
-	execOptions := container.ExecOptions{
-		Cmd:          []string{"ls", "/shared/netDb"},
+	// **Ensure that /shared/netDb exists in the helper container**
+	mkdirCmd := []string{"mkdir", "-p", "/shared/netDb"}
+	execConfig := types.ExecConfig{
+		Cmd:          mkdirCmd,
 		AttachStdout: true,
 		AttachStderr: true,
 	}
-	execIDResp, err := cli.ContainerExecCreate(ctx, helperContainerID, execOptions)
+	execIDResp, err := cli.ContainerExecCreate(ctx, helperContainerID, execConfig)
 	if err != nil {
-		return fmt.Errorf("error creating exec config: %v", err)
-	}
-	err = cli.ContainerExecStart(ctx, execIDResp.ID, types.ExecStartCheck{})
-	if err != nil {
-		return fmt.Errorf("error starting exec: %v", err)
+		return fmt.Errorf("error creating exec config for mkdir: %v", err)
 	}
 
-	// Copy the netDb directory from the helper container (shared volume) to the target container
+	err = cli.ContainerExecStart(ctx, execIDResp.ID, types.ExecStartCheck{})
+	if err != nil {
+		return fmt.Errorf("error executing mkdir in helper container: %v", err)
+	}
+
+	// **Copy the netDb directory from the helper container (shared volume) to the target container**
 	reader, _, err := cli.CopyFromContainer(ctx, helperContainerID, "/shared/netDb")
 	if err != nil {
 		return fmt.Errorf("error copying from helper container: %v", err)
 	}
 	defer reader.Close()
 
-	// Ensure the destination directory exists in the router container
-	execOptions = container.ExecOptions{
+	// **Ensure the destination directory exists in the router container**
+	execOptions := types.ExecConfig{
 		Cmd:          []string{"mkdir", "-p", destinationPath},
 		AttachStdout: true,
 		AttachStderr: true,
 	}
 	execIDResp, err = cli.ContainerExecCreate(ctx, containerID, execOptions)
 	if err != nil {
-		return fmt.Errorf("error creating exec config: %v", err)
+		return fmt.Errorf("error creating exec config for mkdir in target container: %v", err)
 	}
-	err = cli.ContainerExecStart(ctx, execIDResp.ID, container.ExecStartOptions{})
+	err = cli.ContainerExecStart(ctx, execIDResp.ID, types.ExecStartCheck{})
 	if err != nil {
-		return fmt.Errorf("error starting exec: %v", err)
+		return fmt.Errorf("error starting exec for mkdir in target container: %v", err)
 	}
 
-	// Copy the netDb directory to the target container
-	copyToContainerOptions := container.CopyToContainerOptions{
+	// **Copy the netDb directory to the target container**
+	copyToContainerOptions := types.CopyToContainerOptions{
 		AllowOverwriteDirWithFile: true,
 	}
 	err = cli.CopyToContainer(ctx, containerID, destinationPath, reader, copyToContainerOptions)
