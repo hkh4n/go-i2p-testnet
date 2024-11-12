@@ -275,5 +275,24 @@ func SyncRouterInfoToNetDb(cli *client.Client, ctx context.Context, containerID 
 	io.Copy(os.Stdout, respAttach.Reader)
 
 	fmt.Printf("Successfully synced RouterInfo to %s\n", targetDir)
+	// Now rsync
+	fmt.Printf("Beginning rsync\n")
+
+	rsyncCmd := []string{"rsync", "-avzP", "/shared/netDb/", "/root/.i2pd/netDb/"}
+	execOptions := container.ExecOptions{
+		Cmd:          rsyncCmd,
+		AttachStdout: true,
+		AttachStderr: true,
+	}
+	execIDResp, err = cli.ContainerExecCreate(ctx, containerID, execOptions)
+	if err != nil {
+		return fmt.Errorf("error creating exec config for rsync: %v", err)
+	}
+	execResp, err := cli.ContainerExecAttach(ctx, execIDResp.ID, container.ExecStartOptions{})
+	if err != nil {
+		return fmt.Errorf("error attaching to exec for rsync: %v", err)
+	}
+	defer execResp.Close()
+	io.Copy(os.Stdout, execResp.Reader)
 	return nil
 }
