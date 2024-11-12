@@ -136,12 +136,12 @@ func SyncSharedToNetDb(cli *client.Client, ctx context.Context, containerID stri
 	}
 
 	// **Check if /shared/netDb exists in the helper container**
-	execConfig := types.ExecConfig{
+	execOptions := container.ExecOptions{
 		Cmd:          []string{"ls", "/shared/netDb"},
 		AttachStdout: true,
 		AttachStderr: true,
 	}
-	execIDResp, err := cli.ContainerExecCreate(ctx, helperContainerID, execConfig)
+	execIDResp, err := cli.ContainerExecCreate(ctx, helperContainerID, execOptions)
 	if err != nil {
 		return fmt.Errorf("error creating exec config: %v", err)
 	}
@@ -158,16 +158,16 @@ func SyncSharedToNetDb(cli *client.Client, ctx context.Context, containerID stri
 	defer reader.Close()
 
 	// Ensure the destination directory exists in the router container
-	execConfig = types.ExecConfig{
+	execOptions = container.ExecOptions{
 		Cmd:          []string{"mkdir", "-p", destinationPath},
 		AttachStdout: true,
 		AttachStderr: true,
 	}
-	execIDResp, err = cli.ContainerExecCreate(ctx, containerID, execConfig)
+	execIDResp, err = cli.ContainerExecCreate(ctx, containerID, execOptions)
 	if err != nil {
 		return fmt.Errorf("error creating exec config: %v", err)
 	}
-	err = cli.ContainerExecStart(ctx, execIDResp.ID, types.ExecStartCheck{})
+	err = cli.ContainerExecStart(ctx, execIDResp.ID, container.ExecStartOptions{})
 	if err != nil {
 		return fmt.Errorf("error starting exec: %v", err)
 	}
