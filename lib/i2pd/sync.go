@@ -17,6 +17,7 @@ func SyncNetDbToShared(cli *client.Client, ctx context.Context, containerID stri
 	routerInfoString, filename, directory, err := GetRouterInfoWithFilenameRaw(cli, ctx, containerID)
 	if err != nil {
 		log.WithError(err).Error("GetRouterInfoWithFilenameRaw failed")
+		return err
 	}
 	log.WithFields(logrus.Fields{
 		"routerInfoString len": len(routerInfoString),
@@ -48,23 +49,10 @@ func SyncNetDbToShared(cli *client.Client, ctx context.Context, containerID stri
 		cli.ContainerRemove(ctx, helperContainerID, removeOptions)
 	}()
 
-	startOptions := container.StartOptions{}
-	if err := cli.ContainerStart(ctx, helperContainerID, startOptions); err != nil {
+	if err := cli.ContainerStart(ctx, helperContainerID, container.StartOptions{}); err != nil {
 		return fmt.Errorf("error starting helper container: %v", err)
 	}
-	execConfig := container.ExecOptions{
-		Cmd:          []string{"mkdir", "-p", fmt.Sprintf("/shared/netDb/%s", directory)},
-		AttachStdout: true,
-		AttachStderr: true,
-	}
-	execIDResp, err := cli.ContainerExecCreate(ctx, helperContainerID, execConfig)
-	if err != nil {
-		return fmt.Errorf("error creating mkdir exec: %v", err)
-	}
 
-	if err := cli.ContainerExecStart(ctx, execIDResp.ID, types.ExecStartCheck{}); err != nil {
-		return fmt.Errorf("error executing mkdir: %v", err)
-	}
 	// Create a tar archive containing the router info file
 	tarBuffer := new(bytes.Buffer)
 	tw := tar.NewWriter(tarBuffer)
@@ -86,23 +74,20 @@ func SyncNetDbToShared(cli *client.Client, ctx context.Context, containerID stri
 		return fmt.Errorf("error closing tar writer: %v", err)
 	}
 
-	// Copy the tar archive to the correct directory in the helper container
-	targetPath := fmt.Sprintf("/shared/netDb/%s", directory)
-	err = cli.CopyToContainer(ctx, helperContainerID, targetPath, bytes.NewReader(tarBuffer.Bytes()), types.CopyToContainerOptions{})
+	// Copy the tar archive to the helper container's shared volume
+	err = cli.CopyToContainer(ctx, helperContainerID, "/shared/netDb/"+directory, bytes.NewReader(tarBuffer.Bytes()), container.CopyToContainerOptions{})
 	if err != nil {
 		return fmt.Errorf("error copying router info to helper container: %v", err)
 	}
 
-	// It's sent as a tar archive...
-
 	log.WithFields(logrus.Fields{
 		"directory": directory,
 		"filename":  filename,
-		"path":      targetPath,
+		"path":      "/shared/netDb/" + directory,
 	}).Debug("Successfully synced router info to shared volume")
+
 	return nil
 }
-
 func SyncSharedToNetDb(cli *client.Client, ctx context.Context, containerID string, volumeName string) error {
 	// Define the destination path inside the target container
 	destinationPath := "/root/.i2pd/netDb"

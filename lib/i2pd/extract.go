@@ -8,7 +8,6 @@ import (
 	"go-i2p-testnet/lib/docker_control"
 )
 
-/*
 // GetRouterInfoWithFilename extracts RouterInfo and returns it with the routerInfoString and filename
 func GetRouterInfoWithFilename(cli *client.Client, ctx context.Context, containerID string) (*router_info.RouterInfo, string, string, error) {
 	routerInfoString, err := docker_control.ReadFileFromContainer(cli, ctx, containerID, "/root/.i2pd/router.info")
@@ -25,11 +24,9 @@ func GetRouterInfoWithFilename(cli *client.Client, ctx context.Context, containe
 	return &ri, routerInfoString, filename, nil
 }
 
-
-*/
 // GetRouterInfoWithFilename extracts RouterInfo and returns it with the routerInfoString and filename
 func GetRouterInfoWithFilenameRaw(cli *client.Client, ctx context.Context, containerID string) (string, string, string, error) {
-	routerInfoString, err := docker_control.ReadFileFromContainer(cli, ctx, containerID, "/root/.i2pd/router.info")
+	routerInfoString, err := docker_control.ReadFileFromContainerUnarchive(cli, ctx, containerID, "/root/.i2pd/router.info")
 	if err != nil {
 		return "", "", "", err
 	}
