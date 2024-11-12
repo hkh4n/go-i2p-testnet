@@ -40,6 +40,6 @@ func GetRouterInfoWithFilenameRaw(cli *client.Client, ctx context.Context, conta
 	identHash := ri.IdentHash()
 	encodedHash := base64.EncodeToString(identHash[:])
 	filename := "routerInfo-" + encodedHash + ".dat"
-	directory := "r" + string(identHash[:1])
+	directory := "r" + string(encodedHash[:1])
 	return routerInfoString, filename, directory, err
 }
