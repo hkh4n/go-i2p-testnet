@@ -14,10 +14,13 @@ This is in active development and not in working order yet. It is highly unstabl
  - [X] go-i2p node (basic startup)
  - [X] i2pd node (basic startup)
  - [ ] i2p java router node (basic startup)
+ - [ ] Force netdb synchronization
  - Config
    - [X] go-i2p node
    - [X] i2pd node
    - [ ] i2p java router node
+ - Metrics
+   - [ ] TCP connection with daemon to relay router information
 
 ## Verbosity ##
 Logging can be enabled and configured using the DEBUG_TESTNET environment variable. By default, logging is disabled.
