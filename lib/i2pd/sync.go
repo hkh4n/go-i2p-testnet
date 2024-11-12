@@ -94,6 +94,8 @@ func SyncNetDbToShared(cli *client.Client, ctx context.Context, containerID stri
 		return fmt.Errorf("error copying router info to helper container: %v", err)
 	}
 
+	// It's sent as a tar archive...
+
 	log.WithFields(logrus.Fields{
 		"directory": directory,
 		"filename":  filename,
