@@ -8,7 +8,6 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
-	"github.com/go-i2p/go-i2p/lib/common/base64"
 	"github.com/sirupsen/logrus"
 	"io"
 	"os"
@@ -189,16 +188,11 @@ func SyncSharedToNetDb(cli *client.Client, ctx context.Context, containerID stri
 // SyncRouterInfoToNetDb sorts the RouterInfo into the proper location in netDb
 func SyncRouterInfoToNetDb(cli *client.Client, ctx context.Context, containerID string, volumeName string) error {
 	// Get RouterInfo, routerInfoString, and the generated filename
-	ri, routerInfoString, filename, err := GetRouterInfoWithFilename(cli, ctx, containerID)
+	routerInfoString, filename, directory, err := GetRouterInfoWithFilenameRaw(cli, ctx, containerID)
 	if err != nil {
 		return fmt.Errorf("error getting router info: %v", err)
 	}
 	log.Debugf("got filename: %s\n", filename)
-
-	// Extract the first two characters of the encoded hash
-	identHash := ri.IdentHash()
-	encodedHash := base64.EncodeToString(identHash[:])
-	directory := encodedHash[:2] // Get the first two characters
 
 	// Create a temporary helper container with the shared volume mounted
 	helperContainerName := fmt.Sprintf("helper-container-%s", containerID[:12])

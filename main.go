@@ -46,7 +46,7 @@ var completer = readline.NewPrefixCompleter(
 		readline.PcItem("i2pd_router"),
 	),
 	readline.PcItem("sync_i2pd_shared"),
-	readline.PcItem("sync-i2pd_netdb"),
+	readline.PcItem("sync_i2pd_netdb"),
 	readline.PcItem("exit"),
 )
 
