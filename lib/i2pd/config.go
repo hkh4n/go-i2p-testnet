@@ -44,29 +44,29 @@ type I2PDConfig struct {
 	Nat           bool   `ini:"nat"`
 	ReservedRange bool   `ini:"reservedrange"`
 	// Sections
-	NTCP2            NTCP2Config            `ini:"ntcp2"`
-	SSU2             SSU2Config             `ini:"ssu2"`
-	HTTP             HTTPConfig             `ini:"http"`
-	HTTPProxy        HTTPProxyConfig        `ini:"httpproxy"`
-	SocksProxy       SocksProxyConfig       `ini:"socksproxy"`
-	SAM              SAMConfig              `ini:"sam"`
-	BOB              BOBConfig              `ini:"bob"`
-	I2CP             I2CPConfig             `ini:"i2cp"`
-	I2PControl       I2PControlConfig       `ini:"i2pcontrol"`
-	Cryptography     CryptographyConfig     `ini:"cryptography"`
-	UPnP             UPnPConfig             `ini:"upnp"`
-	Meshnets         MeshnetsConfig         `ini:"meshnets"`
-	Reseed           ReseedConfig           `ini:"reseed"`
-	Addressbook      AddressbookConfig      `ini:"addressbook"`
-	Limits           LimitsConfig           `ini:"limits"`
-	Trust            TrustConfig            `ini:"trust"`
-	Exploratory      ExploratoryConfig      `ini:"exploratory"`
-	Persist          PersistConfig          `ini:"persist"`
-	CPUExt           CPUExtConfig           `ini:"cpuext"`
-	Nettime          NettimeConfig          `ini:"nettime"`
-	LocalAddressbook LocalAddressbookConfig `ini:"localaddressbook"`
-	Windows          WindowsConfig          `ini:"windows"`
-	Unix             UnixConfig             `ini:"unix"`
+	NTCP2        NTCP2Config        `ini:"ntcp2"`
+	SSU2         SSU2Config         `ini:"ssu2"`
+	HTTP         HTTPConfig         `ini:"http"`
+	HTTPProxy    HTTPProxyConfig    `ini:"httpproxy"`
+	SocksProxy   SocksProxyConfig   `ini:"socksproxy"`
+	SAM          SAMConfig          `ini:"sam"`
+	BOB          BOBConfig          `ini:"bob"`
+	I2CP         I2CPConfig         `ini:"i2cp"`
+	I2PControl   I2PControlConfig   `ini:"i2pcontrol"`
+	Cryptography CryptographyConfig `ini:"cryptography"`
+	UPnP         UPnPConfig         `ini:"upnp"`
+	Meshnets     MeshnetsConfig     `ini:"meshnets"`
+	Reseed       ReseedConfig       `ini:"reseed"`
+	Addressbook  AddressbookConfig  `ini:"addressbook"`
+	Limits       LimitsConfig       `ini:"limits"`
+	Trust        TrustConfig        `ini:"trust"`
+	Exploratory  ExploratoryConfig  `ini:"exploratory"`
+	Persist      PersistConfig      `ini:"persist"`
+	CPUExt       CPUExtConfig       `ini:"cpuext"`
+	Nettime      NettimeConfig      `ini:"nettime"`
+	//LocalAddressbook LocalAddressbookConfig `ini:"localaddressbook"`
+	//Windows WindowsConfig `ini:"windows"`
+	//Unix    UnixConfig    `ini:"unix"`
 }
 
 // NTCP2 Section
@@ -97,46 +97,42 @@ type HTTPConfig struct {
 
 // HTTPProxy Section
 type HTTPProxyConfig struct {
-	Enabled                bool   `ini:"enabled"`
-	Address                string `ini:"address"`
-	Port                   int    `ini:"port"`
-	Keys                   string `ini:"keys"`
-	AddressHelper          bool   `ini:"addresshelper"`
-	Outproxy               string `ini:"outproxy"`
-	SignatureType          int    `ini:"signaturetype"`
-	InboundLength          int    `ini:"inbound.length"`
-	InboundQuantity        int    `ini:"inbound.quantity"`
-	InboundLengthVariance  int    `ini:"inbound.lengthVariance"`
+	Enabled       bool   `ini:"enabled"`
+	Address       string `ini:"address"`
+	Port          int    `ini:"port"`
+	Keys          string `ini:"keys"`
+	AddressHelper bool   `ini:"addresshelper"`
+	Outproxy      string `ini:"outproxy"`
+	SignatureType int    `ini:"signaturetype"`
+	//InboundLength          int    `ini:"inbound.length"`
+	InboundQuantity int `ini:"inbound.quantity"`
+	//InboundLengthVariance  int    `ini:"inbound.lengthVariance"`
 	OutboundLength         int    `ini:"outbound.length"`
 	OutboundQuantity       int    `ini:"outbound.quantity"`
 	OutboundLengthVariance int    `ini:"outbound.lengthVariance"`
-	OutproxyEnabled        bool   `ini:"outproxy.enabled"`
-	OutproxyPort           int    `ini:"outproxyport"`
-	SendUserAgent          bool   `ini:"senduseragent"`
 	I2CPLeaseSetType       int    `ini:"i2cp.leaseSetType"`
 	I2CPLeaseSetEncType    string `ini:"i2cp.leaseSetEncType"`
-	I2PStreamingProfile    int    `ini:"i2p.streaming.profile"`
+	//I2PStreamingProfile    int    `ini:"i2p.streaming.profile"`
 }
 
 // SocksProxy Section
 type SocksProxyConfig struct {
-	Enabled                bool   `ini:"enabled"`
-	Address                string `ini:"address"`
-	Port                   int    `ini:"port"`
-	Keys                   string `ini:"keys"`
-	OutproxyEnabled        bool   `ini:"outproxy.enabled"`
-	Outproxy               string `ini:"outproxy"`
-	OutproxyPort           int    `ini:"outproxyport"`
-	SignatureType          int    `ini:"signaturetype"`
-	InboundLength          int    `ini:"inbound.length"`
-	InboundQuantity        int    `ini:"inbound.quantity"`
-	InboundLengthVariance  int    `ini:"inbound.lengthVariance"`
+	Enabled         bool   `ini:"enabled"`
+	Address         string `ini:"address"`
+	Port            int    `ini:"port"`
+	Keys            string `ini:"keys"`
+	OutproxyEnabled bool   `ini:"outproxy.enabled"`
+	Outproxy        string `ini:"outproxy"`
+	OutproxyPort    int    `ini:"outproxyport"`
+	SignatureType   int    `ini:"signaturetype"`
+	//InboundLength          int    `ini:"inbound.length"`
+	InboundQuantity int `ini:"inbound.quantity"`
+	//InboundLengthVariance  int    `ini:"inbound.lengthVariance"`
 	OutboundLength         int    `ini:"outbound.length"`
 	OutboundQuantity       int    `ini:"outbound.quantity"`
 	OutboundLengthVariance int    `ini:"outbound.lengthVariance"`
 	I2CPLeaseSetType       int    `ini:"i2cp.leaseSetType"`
 	I2CPLeaseSetEncType    string `ini:"i2cp.leaseSetEncType"`
-	I2PStreamingProfile    int    `ini:"i2p.streaming.profile"`
 }
 
 // SAM Section
@@ -156,12 +152,12 @@ type BOBConfig struct {
 
 // I2CP Section
 type I2CPConfig struct {
-	Enabled       bool   `ini:"enabled"`
-	Address       string `ini:"address"`
-	Port          int    `ini:"port"`
-	SingleThread  bool   `ini:"singlethread"`
-	InboundLimit  int    `ini:"inboundlimit"`
-	OutboundLimit int    `ini:"outboundlimit"`
+	Enabled      bool   `ini:"enabled"`
+	Address      string `ini:"address"`
+	Port         int    `ini:"port"`
+	SingleThread bool   `ini:"singlethread"`
+	//InboundLimit  int    `ini:"inboundlimit"`
+	//OutboundLimit int    `ini:"outboundlimit"`
 }
 
 // I2PControl Section
@@ -233,8 +229,8 @@ type TrustConfig struct {
 
 // Exploratory Section
 type ExploratoryConfig struct {
-	Inbound  TunnelConfig `ini:"inbound"`
-	Outbound TunnelConfig `ini:"outbound"`
+	//Inbound  TunnelConfig `ini:"inbound"`
+	//Outbound TunnelConfig `ini:"outbound"`
 }
 
 // TunnelConfig represents inbound or outbound tunnel configurations
@@ -264,11 +260,14 @@ type NettimeConfig struct {
 }
 
 // LocalAddressbook Section
+/*
 type LocalAddressbookConfig struct {
 	Enabled bool   `ini:"enabled"`
 	File    string `ini:"file"`
 }
 
+*/
+/*
 // Windows-specific Options
 type WindowsConfig struct {
 	Insomnia bool   `ini:"insomnia"`
@@ -279,6 +278,8 @@ type WindowsConfig struct {
 type UnixConfig struct {
 	HandleSigtstp bool `ini:"handle_sigtstp"`
 }
+
+*/
 
 func GenerateDefaultI2PDConfig() *I2PDConfig {
 	return &I2PDConfig{
@@ -340,46 +341,41 @@ func GenerateDefaultI2PDConfig() *I2PDConfig {
 
 		// HTTP Proxy section
 		HTTPProxy: HTTPProxyConfig{
-			Enabled:                true,
-			Address:                "127.0.0.1",
-			Port:                   4444,
-			Keys:                   "",
-			AddressHelper:          true,
-			Outproxy:               "",
-			SignatureType:          7,
-			InboundLength:          3,
-			InboundQuantity:        5,
-			InboundLengthVariance:  0,
+			Enabled:       true,
+			Address:       "127.0.0.1",
+			Port:          4444,
+			Keys:          "",
+			AddressHelper: true,
+			Outproxy:      "",
+			SignatureType: 7,
+			//InboundLength:          3,
+			InboundQuantity: 5,
+			//InboundLengthVariance:  0,
 			OutboundLength:         3,
 			OutboundQuantity:       5,
 			OutboundLengthVariance: 0,
-			OutproxyEnabled:        false,
-			OutproxyPort:           0,
-			SendUserAgent:          false,
 			I2CPLeaseSetType:       3,
 			I2CPLeaseSetEncType:    "",
-			I2PStreamingProfile:    1,
 		},
 
 		// SOCKS Proxy section
 		SocksProxy: SocksProxyConfig{
-			Enabled:                true,
-			Address:                "127.0.0.1",
-			Port:                   4447,
-			Keys:                   "",
-			OutproxyEnabled:        false,
-			Outproxy:               "",
-			OutproxyPort:           0,
-			SignatureType:          7,
-			InboundLength:          3,
-			InboundQuantity:        5,
-			InboundLengthVariance:  0,
+			Enabled:         true,
+			Address:         "127.0.0.1",
+			Port:            4447,
+			Keys:            "",
+			OutproxyEnabled: false,
+			Outproxy:        "",
+			OutproxyPort:    0,
+			SignatureType:   7,
+			//InboundLength:          3,
+			InboundQuantity: 5,
+			//InboundLengthVariance:  0,
 			OutboundLength:         3,
 			OutboundQuantity:       5,
 			OutboundLengthVariance: 0,
 			I2CPLeaseSetType:       3,
 			I2CPLeaseSetEncType:    "",
-			I2PStreamingProfile:    1,
 		},
 
 		// SAM section
@@ -399,12 +395,12 @@ func GenerateDefaultI2PDConfig() *I2PDConfig {
 
 		// I2CP section
 		I2CP: I2CPConfig{
-			Enabled:       false,
-			Address:       "127.0.0.1",
-			Port:          7654,
-			SingleThread:  true,
-			InboundLimit:  0,
-			OutboundLimit: 0,
+			Enabled:      false,
+			Address:      "127.0.0.1",
+			Port:         7654,
+			SingleThread: true,
+			//InboundLimit:  0,
+			//OutboundLimit: 0,
 		},
 
 		// I2PControl section
@@ -473,14 +469,20 @@ func GenerateDefaultI2PDConfig() *I2PDConfig {
 
 		// Exploratory section
 		Exploratory: ExploratoryConfig{
+			/*,
 			Inbound: TunnelConfig{
 				Length:   2,
 				Quantity: 3,
 			},
-			Outbound: TunnelConfig{
-				Length:   2,
-				Quantity: 3,
-			},
+
+			*/
+			/*
+				Outbound: TunnelConfig{
+					Length:   2,
+					Quantity: 3,
+				},
+
+			*/
 		},
 
 		// Persist section
@@ -504,12 +506,16 @@ func GenerateDefaultI2PDConfig() *I2PDConfig {
 		},
 
 		// Local addressbook section
-		LocalAddressbook: LocalAddressbookConfig{
-			Enabled: false,
-			File:    "addressbook/local.csv",
-		},
+		/*
+			LocalAddressbook: LocalAddressbookConfig{
+				Enabled: false,
+				File:    "addressbook/local.csv",
+			},
+
+		*/
 
 		// Windows-specific options
+		/*,
 		Windows: WindowsConfig{
 			Insomnia: false,
 			Close:    "exit",
@@ -519,6 +525,8 @@ func GenerateDefaultI2PDConfig() *I2PDConfig {
 		Unix: UnixConfig{
 			HandleSigtstp: false,
 		},
+
+		*/
 	}
 }
 
@@ -530,6 +538,7 @@ func GenerateDefaultRouterConfig(routerID int) (string, error) {
 	config.Netid = 5
 	config.ReservedRange = false
 	config.Nat = false
+	config.Floodfill = true
 	// Modify configuration as needed
 	// Example modifications (uncomment and adjust as necessary)
 	/*
