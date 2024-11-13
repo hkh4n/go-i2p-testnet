@@ -313,7 +313,7 @@ func addI2PDRouter(cli *client.Client, ctx context.Context) error {
 	}).Debug("Generating router configuration")
 
 	// Generate the configuration data
-	configData, err := i2pd.GenerateDefaultRouterConfig(routerID)
+	configData, err := i2pd.GenerateRouterConfig(routerID)
 	if err != nil {
 		log.WithError(err).Error("Failed to generate i2pd router config")
 		return err
