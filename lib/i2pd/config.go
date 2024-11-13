@@ -4,45 +4,45 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"gopkg.in/ini.v1"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"go-i2p-testnet/lib/utils"
-	"gopkg.in/ini.v1"
 )
 
 // I2PDConfig represents the complete i2pd configuration
 type I2PDConfig struct {
 	// Global options (before any section)
-	TunnelsConf string `ini:"tunconf"`
-	TunnelsDir  string `ini:"tunnelsdir"`
-	CertsDir    string `ini:"certsdir"`
-	Pidfile     string `ini:"pidfile"`
-	Log         string `ini:"log"`
-	Logfile     string `ini:"logfile"`
-	Loglevel    string `ini:"loglevel"`
-	Logclftime  bool   `ini:"logclftime"`
-	Daemon      bool   `ini:"daemon"`
-	Family      string `ini:"family"`
-	Ifname      string `ini:"ifname"`
-	Ifname4     string `ini:"ifname4"`
-	Ifname6     string `ini:"ifname6"`
-	Address4    string `ini:"address4"`
-	Address6    string `ini:"address6"`
-	Host        string `ini:"host"`
-	Port        int    `ini:"port"`
-	IPv4        bool   `ini:"ipv4"`
-	IPv6        bool   `ini:"ipv6"`
-	SSU         bool   `ini:"ssu"`
-	Bandwidth   string `ini:"bandwidth"`
-	Share       int    `ini:"share"`
-	Notransit   bool   `ini:"notransit"`
-	Floodfill   bool   `ini:"floodfill"`
-	Service     bool   `ini:"service"`
-	Datadir     string `ini:"datadir"`
-	Netid       int    `ini:"netid"`
-	Nat         bool   `ini:"nat"`
-
+	TunnelsConf   string `ini:"tunconf"`
+	TunnelsDir    string `ini:"tunnelsdir"`
+	CertsDir      string `ini:"certsdir"`
+	Pidfile       string `ini:"pidfile"`
+	Log           string `ini:"log"`
+	Logfile       string `ini:"logfile"`
+	Loglevel      string `ini:"loglevel"`
+	Logclftime    bool   `ini:"logclftime"`
+	Daemon        bool   `ini:"daemon"`
+	Family        string `ini:"family"`
+	Ifname        string `ini:"ifname"`
+	Ifname4       string `ini:"ifname4"`
+	Ifname6       string `ini:"ifname6"`
+	Address4      string `ini:"address4"`
+	Address6      string `ini:"address6"`
+	Host          string `ini:"host"`
+	Port          int    `ini:"port"`
+	IPv4          bool   `ini:"ipv4"`
+	IPv6          bool   `ini:"ipv6"`
+	SSU           bool   `ini:"ssu"`
+	Bandwidth     string `ini:"bandwidth"`
+	Share         int    `ini:"share"`
+	Notransit     bool   `ini:"notransit"`
+	Floodfill     bool   `ini:"floodfill"`
+	Service       bool   `ini:"service"`
+	Datadir       string `ini:"datadir"`
+	Netid         int    `ini:"netid"`
+	Nat           bool   `ini:"nat"`
+	ReservedRange bool   `ini:"reservedrange"`
 	// Sections
 	NTCP2            NTCP2Config            `ini:"ntcp2"`
 	SSU2             SSU2Config             `ini:"ssu2"`
@@ -527,7 +527,9 @@ func GenerateDefaultRouterConfig(routerID int) (string, error) {
 
 	// Initialize default configuration
 	config := GenerateDefaultI2PDConfig()
-
+	config.Netid = 5
+	config.ReservedRange = false
+	config.Nat = false
 	// Modify configuration as needed
 	// Example modifications (uncomment and adjust as necessary)
 	/*
